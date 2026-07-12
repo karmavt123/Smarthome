@@ -17,7 +17,7 @@ model alert_rules {
   severity           alert_rules_severity           @default(warning)
   is_active          Boolean                        @default(true)
   created_at         DateTime                       @default(now()) @db.DateTime(0)
-  updated_at         DateTime                       @default(now()) @db.DateTime(0)
+  updated_at         DateTime                       @default(now()) @updatedAt @db.DateTime(0)
   homes              homes                          @relation(fields: [home_id], references: [id], onDelete: Cascade, map: "fk_alert_rules_home")
   sensors            sensors?                       @relation(fields: [sensor_id], references: [id], map: "fk_alert_rules_sensor")
   alerts             alerts[]
@@ -72,7 +72,7 @@ model devices {
   status            String                    @default("off") @db.VarChar(30)
   connection_status devices_connection_status @default(offline)
   created_at        DateTime                  @default(now()) @db.DateTime(0)
-  updated_at        DateTime                  @default(now()) @db.DateTime(0)
+  updated_at        DateTime                  @default(now()) @updatedAt @db.DateTime(0)
   device_actions    device_actions[]
   homes             homes                     @relation(fields: [home_id], references: [id], onDelete: Cascade, map: "fk_devices_home")
   rooms             rooms?                    @relation(fields: [room_id], references: [id], map: "fk_devices_room")
@@ -114,7 +114,7 @@ model door_passwords {
   is_active      Boolean  @default(true)
   updated_by     Int?     @db.UnsignedInt
   created_at     DateTime @default(now()) @db.DateTime(0)
-  updated_at     DateTime @default(now()) @db.DateTime(0)
+  updated_at     DateTime @default(now()) @updatedAt @db.DateTime(0)
   devices        devices  @relation(fields: [door_device_id], references: [id], onDelete: Cascade, map: "fk_door_passwords_device")
   users          users?   @relation(fields: [updated_by], references: [id], map: "fk_door_passwords_user")
 
@@ -131,7 +131,7 @@ model face_profiles {
   face_embedding   String?            @db.LongText
   is_active        Boolean            @default(true)
   created_at       DateTime           @default(now()) @db.DateTime(0)
-  updated_at       DateTime           @default(now()) @db.DateTime(0)
+  updated_at       DateTime           @default(now()) @updatedAt @db.DateTime(0)
   door_access_logs door_access_logs[]
   homes            homes              @relation(fields: [home_id], references: [id], onDelete: Cascade, map: "fk_face_profiles_home")
   users            users?             @relation(fields: [user_id], references: [id], map: "fk_face_profiles_user")
@@ -158,7 +158,7 @@ model homes {
   name          String          @db.VarChar(100)
   address       String?         @db.VarChar(255)
   created_at    DateTime        @default(now()) @db.DateTime(0)
-  updated_at    DateTime        @default(now()) @db.DateTime(0)
+  updated_at    DateTime        @default(now()) @updatedAt @db.DateTime(0)
   alert_rules   alert_rules[]
   alerts        alerts[]
   devices       devices[]
@@ -190,7 +190,7 @@ model rooms {
   home_id    Int       @db.UnsignedInt
   name       String    @db.VarChar(100)
   created_at DateTime  @default(now()) @db.DateTime(0)
-  updated_at DateTime  @default(now()) @db.DateTime(0)
+  updated_at DateTime  @default(now()) @updatedAt @db.DateTime(0)
   devices    devices[]
   homes      homes     @relation(fields: [home_id], references: [id], onDelete: Cascade, map: "fk_rooms_home")
 
@@ -216,7 +216,7 @@ model sensors {
   min_value       Decimal?            @db.Decimal(10, 2)
   max_value       Decimal?            @db.Decimal(10, 2)
   created_at      DateTime            @default(now()) @db.DateTime(0)
-  updated_at      DateTime            @default(now()) @db.DateTime(0)
+  updated_at      DateTime            @default(now()) @updatedAt @db.DateTime(0)
   alert_rules     alert_rules[]
   sensor_readings sensor_readings[]
   devices         devices             @relation(fields: [device_id], references: [id], onDelete: Cascade, map: "fk_sensors_device")
@@ -234,7 +234,7 @@ model users {
   role             users_role         @default(user)
   status           users_status       @default(active)
   created_at       DateTime           @default(now()) @db.DateTime(0)
-  updated_at       DateTime           @default(now()) @db.DateTime(0)
+  updated_at       DateTime           @default(now()) @updatedAt @db.DateTime(0)
   device_actions   device_actions[]
   door_access_logs door_access_logs[]
   door_passwords   door_passwords[]
