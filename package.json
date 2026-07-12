@@ -18,13 +18,10 @@
     "start": "craco start",
     "build": "craco build",
     "test": "craco test",
-    "eject": "react-scripts eject"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+    "eject": "react-scripts eject",
+    "lint": "eslint src --ext .js,.jsx",
+    "lint:fix": "eslint src --ext .js,.jsx --fix",
+    "format": "prettier --write src"
   },
   "browserslist": {
     "production": [
@@ -42,7 +39,9 @@
     "@craco/craco": "^7.1.0",
     "@tailwindcss/postcss": "^4.3.2",
     "autoprefixer": "^10.5.2",
+    "eslint-config-prettier": "^10.1.8",
     "postcss": "^8.5.17",
+    "prettier": "^3.9.5",
     "sass": "^1.99.0",
     "tailwindcss": "^4.3.2"
   }
