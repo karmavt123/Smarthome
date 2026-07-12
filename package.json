@@ -35,5 +35,12 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.2",
+    "autoprefixer": "^10.5.2",
+    "postcss": "^8.5.17",
+    "sass": "^1.99.0",
+    "tailwindcss": "^4.3.2"
   }
 }
