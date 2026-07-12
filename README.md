@@ -59,6 +59,12 @@ Kiểm tra kết nối DB:
 curl http://localhost:3000/api/health
 ```
 
+### Test API bằng giao diện
+
+Mở `http://localhost:3000/api-docs` — Swagger UI, list sẵn hết endpoint, bấm "Try it out" để gọi thử ngay trên browser, không cần curl/Postman.
+
+Thêm endpoint mới thì viết comment `@openapi` phía trên route (xem `src/routes/devices.routes.js` làm ví dụ), Swagger UI tự đọc lại khi restart server.
+
 ## Cấu trúc thư mục
 
 ```

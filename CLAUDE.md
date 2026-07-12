@@ -11,7 +11,7 @@ Basic Express scaffold in place. A `/api/health` route (checks DB connectivity) 
 - Runtime: Node 20 (`engines.node >=20` in package.json)
 - Framework: Express 5 (`express`)
 - Database: MySQL, accessed via Prisma ORM (`@prisma/client` + `prisma` CLI) — chosen over a raw driver so switching to Postgres later is a `provider` + migration change, not a rewrite
-- Other deps: `cors`, `morgan` (request logging), `dotenv` (env config), `nodemon` (dev reload)
+- Other deps: `cors`, `morgan` (request logging), `dotenv` (env config), `nodemon` (dev reload), `swagger-ui-express` + `swagger-jsdoc` (interactive API docs)
 - Domain: school IoT project — smart home. Web server exposes an API that talks to Yolobit microcontroller boards over Ohstem Cloud (Vietnamese IoT platform commonly paired with Yolobit in education contexts).
 
 ## Commands
@@ -31,6 +31,7 @@ Basic Express scaffold in place. A `/api/health` route (checks DB connectivity) 
 - `src/app.js` — entry point: loads `.env`, builds Express app (middleware, route mounting), starts HTTP listener
 - `src/config/prisma.js` — Prisma Client singleton, imported wherever DB access is needed
 - `src/routes/`, `src/controllers/`, `src/services/` — layering is routes → controllers → services → `config/prisma.js` client; see the `devices` slice as the reference pattern for new resources
+- `src/config/swagger.js` — builds the OpenAPI spec from `@openapi` JSDoc comments above route handlers (see `devices.routes.js`); served at `/api-docs` via Swagger UI. Add a new `@openapi` block whenever you add a route so it stays documented and testable in the browser.
 - `prisma/schema.prisma` — hand-edited source of truth for DB structure (models, enums, relations). Edit this, then run `npx prisma migrate dev --name <description>` to generate + apply the migration.
 - `prisma/migrations/` — one directory per migration (timestamp + name), each with the generated `migration.sql`. Committed to git; this is the DB change history, don't hand-edit past migrations.
 - `db/schema.sql` — original raw-SQL schema dump, kept only as historical reference for the initial table design. No longer the source of truth — `prisma/schema.prisma` + `prisma/migrations` are canonical now. Note the `alert_rules.condition_operator` enum uses `@map` since MySQL operator values (`>`, `<`, `>=`, `<=`, `=`) aren't valid Prisma enum identifiers.
