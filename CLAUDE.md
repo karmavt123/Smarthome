@@ -5,16 +5,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm start          # dev server at http://localhost:3000
-npm test           # Jest in watch mode
-npm test -- --watchAll=false  # single run, no watch
+npm start          # dev server at http://localhost:8000
+npm test           # Vitest in watch mode
+npm test -- run    # single run, no watch
 npm test -- -t "test name"    # run one test by name
-npm run build      # production build to /build
+npm run build      # production build to /dist
+npm run preview    # preview production build locally
 ```
 
 ## Stack
 
-Create React App (react-scripts 5) + React 19. No state manager, no UI library yet. ESLint config comes from `react-app` preset (no separate config file).
+Vite 6 + React 19. No state manager, no UI library yet. ESLint config lives in `.eslintrc.js` (plain `eslint:recommended` + React/React Hooks plugins — no `react-app` preset). Entry HTML is `index.html` at repo root (not `public/`), which loads `src/index.js` as a module. Vite config (aliases, dev server port, Vitest settings) lives in `vite.config.js`. Env vars exposed to client code must be prefixed `VITE_` (not `REACT_APP_`) and read via `import.meta.env.VITE_*` (not `process.env`).
 
 **Routing:** React Router v7 (`react-router-dom`). `BrowserRouter` wraps `<App>` in `src/index.js`. Routes defined in `App.js` using nested `Routes` / `Route`. Layout routes use `<Outlet>`.
 
@@ -54,5 +55,5 @@ src/
 
 **API layer:**
 - `src/services/apiClient.js` — singleton `ApiClient` bọc axios. Tự gắn Bearer token từ `localStorage`. Auto redirect `/login` khi 401.
-- Base URL lấy từ `REACT_APP_API_URL` trong `.env` (mặc định `http://localhost:8000/api`).
+- Base URL lấy từ `VITE_API_URL` trong `.env` (mặc định `http://localhost:8000/api`).
 - Tạo service mới: copy pattern `deviceService.js` — object chứa các method gọi `apiClient.get/post/put/patch/delete`.
