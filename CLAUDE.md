@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Basic Express scaffold in place. A `/api/health` route (checks DB connectivity) and a `devices` CRUD slice (routes → controller → service → Prisma) exist as the reference pattern. No auth or Ohstem Cloud integration yet — add them as the project grows and keep this file in sync.
+Basic Express scaffold in place. A `/api/health` route (checks DB connectivity), a `devices` CRUD slice (routes → controller → service → Prisma), and a JWT `auth` slice (sign-up, sign-in, sign-out, refresh-token — see `src/services/auth.service.js`) exist as reference patterns. Refresh tokens are stored hashed (SHA-256) in the `refresh_tokens` table and rotated on every refresh; access tokens are short-lived JWTs verified with `JWT_ACCESS_SECRET`. `src/middlewares/auth.middleware.js` exports `requireAuth`, a bearer-token guard that verifies the access token and sets `req.user`; the `devices` routes are protected with it (`router.use('/devices', requireAuth)` in `devices.routes.js` — note the path-scoped `.use`, since routers sharing the same `/api` mount prefix in `app.js` would otherwise leak an unscoped `.use` middleware into sibling routes). No Ohstem Cloud integration yet — add it as the project grows and keep this file in sync.
 
 ## Stack
 
@@ -19,7 +19,7 @@ Basic Express scaffold in place. A `/api/health` route (checks DB connectivity) 
 - Node version is pinned via `.nvmrc` (20.20.2) — run `nvm use` before anything else if your shell defaults to a different Node. Prisma 6.x's schema engine needs Node 18+ (WASM `externref` support); on Node 16 `prisma migrate`/`generate` crash with an opaque `CompileError: WebAssembly.Module()` dump.
 - `npm run dev` — start server with nodemon (auto-reload)
 - `npm start` — start server with plain node
-- `npm test` — placeholder, no test runner configured yet
+- `npm test` — runs the Jest suite (`tests/auth.test.js`, `tests/devices.test.js`) via Supertest against the real Express app. These are integration tests, not mocked — they hit the actual dev MySQL DB through Prisma (make sure it's running and migrated first), creating and cleaning up their own rows (unique per-run emails/device codes, `afterAll` deletes what they created). No test DB isolation yet, so don't point `DATABASE_URL` at a DB with data you can't afford to touch.
 - Copy `.env.example` to `.env` and fill in `DB_*` / `DATABASE_URL` / Ohstem credentials before running
 - `npx prisma migrate dev --name <description>` — create + apply a migration after editing `prisma/schema.prisma` (also regenerates the client). This is the Laravel-`artisan migrate`-equivalent workflow.
 - `npx prisma migrate deploy` — apply pending migrations without prompting (CI / teammate pulling new migrations)
@@ -28,7 +28,9 @@ Basic Express scaffold in place. A `/api/health` route (checks DB connectivity) 
 
 ## Architecture
 
-- `src/app.js` — entry point: loads `.env`, builds Express app (middleware, route mounting), starts HTTP listener
+- `src/app.js` — builds and exports the Express app (middleware, route mounting) but does not listen; kept separate from the HTTP listener so tests can `require` it and drive it with Supertest without binding a real port
+- `src/server.js` — entry point (`npm start`/`npm run dev` point here now): loads `.env`, requires `src/app.js`, starts the HTTP listener
+- `tests/` — Jest + Supertest integration tests per route slice (`auth.test.js`, `devices.test.js`); see the `npm test` note above for how they use the real DB
 - `src/config/prisma.js` — Prisma Client singleton, imported wherever DB access is needed
 - `src/routes/`, `src/controllers/`, `src/services/` — layering is routes → controllers → services → `config/prisma.js` client; see the `devices` slice as the reference pattern for new resources
 - `src/config/swagger.js` — builds the OpenAPI spec from `@openapi` JSDoc comments above route handlers (see `devices.routes.js`); served at `/api-docs` via Swagger UI. Add a new `@openapi` block whenever you add a route so it stays documented and testable in the browser.

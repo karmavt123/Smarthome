@@ -7,6 +7,15 @@ const options = {
       title: 'smarthome-backend API',
       version: '1.0.0',
     },
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      },
+    },
   },
   apis: ['./src/routes/*.js'],
 };

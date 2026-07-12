@@ -8,6 +8,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 const healthRoutes = require('./routes/health.routes');
 const devicesRoutes = require('./routes/devices.routes');
+const authRoutes = require('./routes/auth.routes');
 
 const app = express();
 
@@ -19,11 +20,6 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use('/api', healthRoutes);
 app.use('/api', devicesRoutes);
-
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log(`smarthome-backend listening on port ${PORT}`);
-});
+app.use('/api', authRoutes);
 
 module.exports = app;

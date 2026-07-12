@@ -1,14 +1,14 @@
 {
   "name": "smarthome-backend",
   "version": "1.0.0",
-  "main": "src/app.js",
+  "main": "src/server.js",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest --runInBand"
   },
   "keywords": [],
   "author": "",
@@ -16,15 +16,19 @@
   "description": "",
   "dependencies": {
     "@prisma/client": "^6.19.3",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "morgan": "^1.11.0",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
+    "jest": "^30.4.2",
     "nodemon": "^3.1.14",
-    "prisma": "^6.19.3"
+    "prisma": "^6.19.3",
+    "supertest": "^7.2.2"
   }
 }
