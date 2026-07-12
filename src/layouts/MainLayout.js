@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -10,6 +11,8 @@ import {
   faMagnifyingGlass,
   faCircleUser,
   faSliders,
+  faBars,
+  faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 
 const NAV_ITEMS = [
@@ -22,12 +25,35 @@ const NAV_ITEMS = [
 ];
 
 function MainLayout() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <div className="min-h-screen flex bg-background">
-      <aside className="w-60 shrink-0 bg-surface-container-low border-r border-outline-variant/30 flex flex-col p-4">
-        <div className="mb-8 px-2">
-          <h1 className="text-body-lg font-bold text-secondary leading-tight">Lumina Home Logic</h1>
-          <p className="text-label-sm text-outline mt-1">Active Home System</p>
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`fixed md:static inset-y-0 left-0 z-40 w-60 shrink-0 bg-surface-container-low border-r border-outline-variant/30 flex flex-col p-4 transition-transform duration-200 md:translate-x-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="mb-8 px-2 flex items-center justify-between">
+          <div>
+            <h1 className="text-body-lg font-bold text-secondary leading-tight">Lumina Home Logic</h1>
+            <p className="text-label-sm text-outline mt-1">Active Home System</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Đóng menu"
+            className="md:hidden text-on-surface-variant hover:text-on-surface"
+          >
+            <FontAwesomeIcon icon={faXmark} className="w-4 h-4" />
+          </button>
         </div>
 
         <nav className="flex flex-col gap-1">
@@ -35,6 +61,7 @@ function MainLayout() {
             <NavLink
               key={to}
               to={to}
+              onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-body-md transition-colors ${
                   isActive
@@ -61,11 +88,21 @@ function MainLayout() {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 shrink-0 bg-surface-container border-b border-outline-variant/30 flex items-center justify-between px-6">
-          <h2 className="text-headline-md font-semibold text-secondary">Dashboard Overview</h2>
+        <header className="h-16 shrink-0 bg-surface-container border-b border-outline-variant/30 flex items-center justify-between px-4 md:px-6 gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Mở menu"
+              className="md:hidden w-9 h-9 shrink-0 rounded-full bg-surface-container-low border border-outline-variant/30 flex items-center justify-center text-on-surface-variant hover:text-on-surface"
+            >
+              <FontAwesomeIcon icon={faBars} className="w-4 h-4" />
+            </button>
+            <h2 className="text-headline-md font-semibold text-secondary truncate">Dashboard Overview</h2>
+          </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-full bg-surface-container-low border border-outline-variant/30 px-4 py-2">
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="hidden sm:flex items-center gap-2 rounded-full bg-surface-container-low border border-outline-variant/30 px-4 py-2">
               <FontAwesomeIcon icon={faMagnifyingGlass} className="w-4 h-4 text-outline" />
               <input
                 type="text"
