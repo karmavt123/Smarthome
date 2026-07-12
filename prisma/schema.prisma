@@ -1,0 +1,381 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model alert_rules {
+  id                 Int                            @id @default(autoincrement()) @db.UnsignedInt
+  home_id            Int                            @db.UnsignedInt
+  sensor_id          Int?                           @db.UnsignedInt
+  name               String                         @db.VarChar(100)
+  condition_operator alert_rules_condition_operator
+  threshold_value    Decimal                        @db.Decimal(10, 2)
+  severity           alert_rules_severity           @default(warning)
+  is_active          Boolean                        @default(true)
+  created_at         DateTime                       @default(now()) @db.DateTime(0)
+  updated_at         DateTime                       @default(now()) @db.DateTime(0)
+  homes              homes                          @relation(fields: [home_id], references: [id], onDelete: Cascade, map: "fk_alert_rules_home")
+  sensors            sensors?                       @relation(fields: [sensor_id], references: [id], map: "fk_alert_rules_sensor")
+  alerts             alerts[]
+
+  @@index([sensor_id], map: "fk_alert_rules_sensor")
+  @@index([home_id, is_active], map: "idx_alert_rules_home_active")
+}
+
+model alerts {
+  id            BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  home_id       Int               @db.UnsignedInt
+  alert_rule_id Int?              @db.UnsignedInt
+  alert_type    alerts_alert_type
+  severity      alerts_severity   @default(warning)
+  title         String            @db.VarChar(150)
+  message       String            @db.Text
+  status        alerts_status     @default(unread)
+  created_at    DateTime          @default(now()) @db.DateTime(0)
+  updated_at    DateTime?         @db.DateTime(0)
+  homes         homes             @relation(fields: [home_id], references: [id], onDelete: Cascade, map: "fk_alerts_home")
+  alert_rules   alert_rules?      @relation(fields: [alert_rule_id], references: [id], map: "fk_alerts_rule")
+  notifications notifications[]
+
+  @@index([alert_rule_id], map: "fk_alerts_rule")
+  @@index([home_id, status], map: "idx_alerts_home_status")
+  @@index([alert_type, created_at], map: "idx_alerts_type_time")
+}
+
+model device_actions {
+  id               BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
+  device_id        Int                             @db.UnsignedInt
+  user_id          Int?                            @db.UnsignedInt
+  action           device_actions_action
+  control_method   device_actions_control_method
+  execution_status device_actions_execution_status
+  failure_reason   String?                         @db.VarChar(255)
+  created_at       DateTime                        @default(now()) @db.DateTime(0)
+  devices          devices                         @relation(fields: [device_id], references: [id], onDelete: Cascade, map: "fk_device_actions_device")
+  users            users?                          @relation(fields: [user_id], references: [id], map: "fk_device_actions_user")
+
+  @@index([device_id, created_at], map: "idx_device_actions_device_time")
+  @@index([user_id], map: "idx_device_actions_user")
+}
+
+model devices {
+  id                Int                       @id @default(autoincrement()) @db.UnsignedInt
+  home_id           Int                       @db.UnsignedInt
+  room_id           Int?                      @db.UnsignedInt
+  name              String                    @db.VarChar(100)
+  device_code       String                    @unique(map: "device_code") @db.VarChar(100)
+  device_type       devices_device_type
+  status            String                    @default("off") @db.VarChar(30)
+  connection_status devices_connection_status @default(offline)
+  created_at        DateTime                  @default(now()) @db.DateTime(0)
+  updated_at        DateTime                  @default(now()) @db.DateTime(0)
+  device_actions    device_actions[]
+  homes             homes                     @relation(fields: [home_id], references: [id], onDelete: Cascade, map: "fk_devices_home")
+  rooms             rooms?                    @relation(fields: [room_id], references: [id], map: "fk_devices_room")
+  door_access_logs  door_access_logs[]
+  door_passwords    door_passwords[]
+  sensors           sensors[]
+  voice_commands    voice_commands[]
+
+  @@index([connection_status], map: "idx_devices_connection_status")
+  @@index([home_id], map: "idx_devices_home")
+  @@index([room_id], map: "idx_devices_room")
+}
+
+model door_access_logs {
+  id               BigInt                         @id @default(autoincrement()) @db.UnsignedBigInt
+  door_device_id   Int                            @db.UnsignedInt
+  user_id          Int?                           @db.UnsignedInt
+  face_profile_id  Int?                           @db.UnsignedInt
+  access_method    door_access_logs_access_method
+  result           door_access_logs_result
+  confidence_score Decimal?                       @db.Decimal(5, 4)
+  snapshot_url     String?                        @db.Text
+  failure_reason   String?                        @db.VarChar(255)
+  created_at       DateTime                       @default(now()) @db.DateTime(0)
+  devices          devices                        @relation(fields: [door_device_id], references: [id], onDelete: Cascade, map: "fk_door_access_logs_device")
+  face_profiles    face_profiles?                 @relation(fields: [face_profile_id], references: [id], map: "fk_door_access_logs_face_profile")
+  users            users?                         @relation(fields: [user_id], references: [id], map: "fk_door_access_logs_user")
+
+  @@index([face_profile_id], map: "fk_door_access_logs_face_profile")
+  @@index([user_id], map: "fk_door_access_logs_user")
+  @@index([door_device_id, created_at], map: "idx_door_access_logs_device_time")
+  @@index([result, created_at], map: "idx_door_access_logs_result_time")
+}
+
+model door_passwords {
+  id             Int      @id @default(autoincrement()) @db.UnsignedInt
+  door_device_id Int      @db.UnsignedInt
+  password_hash  String   @db.VarChar(255)
+  is_active      Boolean  @default(true)
+  updated_by     Int?     @db.UnsignedInt
+  created_at     DateTime @default(now()) @db.DateTime(0)
+  updated_at     DateTime @default(now()) @db.DateTime(0)
+  devices        devices  @relation(fields: [door_device_id], references: [id], onDelete: Cascade, map: "fk_door_passwords_device")
+  users          users?   @relation(fields: [updated_by], references: [id], map: "fk_door_passwords_user")
+
+  @@index([updated_by], map: "fk_door_passwords_user")
+  @@index([door_device_id, is_active], map: "idx_door_passwords_device_active")
+}
+
+model face_profiles {
+  id               Int                @id @default(autoincrement()) @db.UnsignedInt
+  home_id          Int                @db.UnsignedInt
+  user_id          Int?               @db.UnsignedInt
+  name             String             @db.VarChar(100)
+  image_url        String?            @db.Text
+  face_embedding   String?            @db.LongText
+  is_active        Boolean            @default(true)
+  created_at       DateTime           @default(now()) @db.DateTime(0)
+  updated_at       DateTime           @default(now()) @db.DateTime(0)
+  door_access_logs door_access_logs[]
+  homes            homes              @relation(fields: [home_id], references: [id], onDelete: Cascade, map: "fk_face_profiles_home")
+  users            users?             @relation(fields: [user_id], references: [id], map: "fk_face_profiles_user")
+
+  @@index([user_id], map: "fk_face_profiles_user")
+  @@index([home_id, is_active], map: "idx_face_profiles_home_active")
+}
+
+model home_members {
+  id          Int                      @id @default(autoincrement()) @db.UnsignedInt
+  home_id     Int                      @db.UnsignedInt
+  user_id     Int                      @db.UnsignedInt
+  member_role home_members_member_role @default(member)
+  created_at  DateTime                 @default(now()) @db.DateTime(0)
+  homes       homes                    @relation(fields: [home_id], references: [id], onDelete: Cascade, map: "fk_home_members_home")
+  users       users                    @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_home_members_user")
+
+  @@unique([home_id, user_id], map: "uq_home_members")
+  @@index([user_id], map: "fk_home_members_user")
+}
+
+model homes {
+  id            Int             @id @default(autoincrement()) @db.UnsignedInt
+  name          String          @db.VarChar(100)
+  address       String?         @db.VarChar(255)
+  created_at    DateTime        @default(now()) @db.DateTime(0)
+  updated_at    DateTime        @default(now()) @db.DateTime(0)
+  alert_rules   alert_rules[]
+  alerts        alerts[]
+  devices       devices[]
+  face_profiles face_profiles[]
+  home_members  home_members[]
+  rooms         rooms[]
+}
+
+model notifications {
+  id         BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  user_id    Int                   @db.UnsignedInt
+  alert_id   BigInt?               @db.UnsignedBigInt
+  title      String                @db.VarChar(150)
+  message    String                @db.Text
+  channel    notifications_channel @default(in_app)
+  status     notifications_status  @default(pending)
+  updated_at DateTime?             @db.DateTime(0)
+  created_at DateTime              @default(now()) @db.DateTime(0)
+  alerts     alerts?               @relation(fields: [alert_id], references: [id], map: "fk_notifications_alert")
+  users      users                 @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_notifications_user")
+
+  @@index([alert_id], map: "fk_notifications_alert")
+  @@index([created_at], map: "idx_notifications_created_at")
+  @@index([user_id, status], map: "idx_notifications_user_status")
+}
+
+model rooms {
+  id         Int       @id @default(autoincrement()) @db.UnsignedInt
+  home_id    Int       @db.UnsignedInt
+  name       String    @db.VarChar(100)
+  created_at DateTime  @default(now()) @db.DateTime(0)
+  updated_at DateTime  @default(now()) @db.DateTime(0)
+  devices    devices[]
+  homes      homes     @relation(fields: [home_id], references: [id], onDelete: Cascade, map: "fk_rooms_home")
+
+  @@unique([home_id, name], map: "uq_rooms_home_name")
+}
+
+model sensor_readings {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  sensor_id  Int      @db.UnsignedInt
+  value      Decimal  @db.Decimal(10, 2)
+  created_at DateTime @default(now()) @db.DateTime(0)
+  sensors    sensors  @relation(fields: [sensor_id], references: [id], onDelete: Cascade, map: "fk_sensor_readings_sensor")
+
+  @@index([sensor_id, created_at], map: "idx_sensor_readings_sensor_time")
+  @@index([created_at], map: "idx_sensor_readings_time")
+}
+
+model sensors {
+  id              Int                 @id @default(autoincrement()) @db.UnsignedInt
+  device_id       Int                 @db.UnsignedInt
+  sensor_type     sensors_sensor_type
+  unit            String              @db.VarChar(20)
+  min_value       Decimal?            @db.Decimal(10, 2)
+  max_value       Decimal?            @db.Decimal(10, 2)
+  created_at      DateTime            @default(now()) @db.DateTime(0)
+  updated_at      DateTime            @default(now()) @db.DateTime(0)
+  alert_rules     alert_rules[]
+  sensor_readings sensor_readings[]
+  devices         devices             @relation(fields: [device_id], references: [id], onDelete: Cascade, map: "fk_sensors_device")
+
+  @@unique([device_id, sensor_type], map: "uq_sensors_device_type")
+}
+
+model users {
+  id               Int                @id @default(autoincrement()) @db.UnsignedInt
+  full_name        String             @db.VarChar(100)
+  email            String             @unique(map: "email") @db.VarChar(255)
+  password_hash    String             @db.VarChar(255)
+  phone            String?            @db.VarChar(20)
+  avatar_url       String?            @db.Text
+  role             users_role         @default(user)
+  status           users_status       @default(active)
+  created_at       DateTime           @default(now()) @db.DateTime(0)
+  updated_at       DateTime           @default(now()) @db.DateTime(0)
+  device_actions   device_actions[]
+  door_access_logs door_access_logs[]
+  door_passwords   door_passwords[]
+  face_profiles    face_profiles[]
+  home_members     home_members[]
+  notifications    notifications[]
+  voice_commands   voice_commands[]
+}
+
+model voice_commands {
+  id               BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
+  user_id          Int?                            @db.UnsignedInt
+  device_id        Int?                            @db.UnsignedInt
+  recognized_text  String                          @db.Text
+  intent           String?                         @db.VarChar(100)
+  confidence_score Decimal?                        @db.Decimal(5, 4)
+  execution_status voice_commands_execution_status
+  created_at       DateTime                        @default(now()) @db.DateTime(0)
+  devices          devices?                        @relation(fields: [device_id], references: [id], map: "fk_voice_commands_device")
+  users            users?                          @relation(fields: [user_id], references: [id], map: "fk_voice_commands_user")
+
+  @@index([device_id], map: "fk_voice_commands_device")
+  @@index([execution_status], map: "idx_voice_commands_status")
+  @@index([user_id, created_at], map: "idx_voice_commands_user_time")
+}
+
+enum sensors_sensor_type {
+  temperature
+  humidity
+  light
+}
+
+enum alerts_alert_type {
+  environment
+  unauthorized_access
+  device_offline
+}
+
+enum device_actions_action {
+  turn_on
+  turn_off
+  open
+  close
+}
+
+enum home_members_member_role {
+  owner
+  member
+}
+
+enum alert_rules_condition_operator {
+  gt  @map(">")
+  lt  @map("<")
+  gte @map(">=")
+  lte @map("<=")
+  eq  @map("=")
+}
+
+enum alerts_severity {
+  info
+  warning
+  critical
+}
+
+enum device_actions_control_method {
+  app
+  voice
+  password
+  face
+  automatic
+  manual
+}
+
+enum door_access_logs_access_method {
+  password
+  face
+  app
+  voice
+  manual
+}
+
+enum device_actions_execution_status {
+  success
+  failed
+}
+
+enum devices_device_type {
+  light
+  fan
+  door
+  sensor
+}
+
+enum door_access_logs_result {
+  success
+  failed
+}
+
+enum notifications_channel {
+  in_app
+  email
+  telegram
+  push
+}
+
+enum alert_rules_severity {
+  info
+  warning
+  critical
+}
+
+enum notifications_status {
+  pending
+  sent
+  failed
+  read
+}
+
+enum users_role {
+  admin
+  user
+}
+
+enum voice_commands_execution_status {
+  success
+  failed
+  unknown_command
+}
+
+enum alerts_status {
+  unread
+  read
+  resolved
+}
+
+enum devices_connection_status {
+  online
+  offline
+}
+
+enum users_status {
+  active
+  inactive
+}
