@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Start of session:** read `DATABASE.md` before writing any form, service, or data-shaped UI. It documents the backend DB schema (tables, fields, enums, nullable/sensitive fields) — the source of truth for what data actually exists and its shape. Cross-check any form field, mock data field, or API payload assumption against it before building.
+
 ## Commands
 
 ```bash
@@ -44,6 +46,11 @@ src/
 - Hooks: `camelCase.js`, prefix `use` (e.g. `useDevices.js`)
 - Services & utils: `camelCase.js` (e.g. `deviceService.js`)
 - SCSS partials: `_camelCase.scss`
+
+**One component per file:**
+- Every file exports exactly one component. No inline sub-components defined inside a page/layout file, even small presentational ones used only once.
+- If a page needs a sub-component (a card, a form, a list item), extract it to `src/components/SubComponentName.js` and import it.
+- Exception: tiny local helpers that render no markup of their own (pure data/formatting functions) can stay in the same file.
 
 **Routing pattern** — add a new page:
 1. Create `src/pages/FooPage.js`

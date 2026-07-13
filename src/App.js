@@ -5,6 +5,7 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import SelectHomePage from './pages/SelectHomePage';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <Route path="/dang-ky" element={<RegisterPage />} />
         <Route path="/quen-mat-khau" element={<ForgotPasswordPage />} />
       </Route>
+      <Route path="/chon-nha" element={<SelectHomePage />} />
     </Routes>
   );
 }
