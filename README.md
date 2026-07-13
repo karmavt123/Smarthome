@@ -86,14 +86,12 @@ db/
 1. Sửa `prisma/schema.prisma`
 2. Chạy `npx prisma migrate dev --name ten_thay_doi`
 
-File migration mới được lưu vào `prisma/migrations/` (nhớ commit luôn file này).
+File migration mới được lưu vào `prisma/migrations/`.
 
 ## Các lệnh hay dùng
 
-| Lệnh                                         | Mục đích                                                                              |
-| -------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `npm run dev`                                | chạy server với nodemon (tự reload khi sửa code)                                      |
-| `npm start`                                  | chạy server bình thường                                                               |
-| `npx prisma migrate dev --name ten_thay_doi` | tạo + apply migration mới sau khi sửa schema                                          |
-| `npx prisma migrate deploy`                  | apply các migration còn thiếu, dùng khi pull code mới từ đồng đội hoặc lên production |
-| `npx prisma studio`                          | mở GUI xem/sửa dữ liệu trong DB                                                       |
+| Lệnh                                         | Mục đích                                     |
+| -------------------------------------------- | -------------------------------------------- |
+|                                              |
+| `npx prisma migrate dev --name ten_thay_doi` | tạo + apply migration mới sau khi sửa schema |
+| `npx prisma migrate deploy`                  | run migration                                |
