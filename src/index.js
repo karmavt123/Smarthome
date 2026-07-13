@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { config } from '@fortawesome/fontawesome-svg-core';
 import './index.css';
 import App from './App';
+import AuthProvider from './contexts/AuthContext';
 import reportWebVitals from './reportWebVitals';
 
 // FontAwesome auto-injects its own unlayered CSS (.svg-inline--fa { width: 1.25em })
@@ -15,7 +16,9 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

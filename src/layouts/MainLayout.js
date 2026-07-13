@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, Navigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import useRouter from '~/hooks/useRouter';
+import useAuth from '~/hooks/useAuth';
 import {
   faTableCellsLarge,
   faHouse,
@@ -14,6 +15,7 @@ import {
   faBars,
   faXmark,
   faRightFromBracket,
+  faSpinner,
 } from '@fortawesome/free-solid-svg-icons';
 
 const NAV_ITEMS = [
@@ -28,6 +30,26 @@ const NAV_ITEMS = [
 function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
+  const { isAuthenticated, isLoading, logout } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <FontAwesomeIcon icon={faSpinner} className="w-6 h-6 text-secondary animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    const next = router.path + router.location.search;
+    return <Navigate to={`/dang-nhap?next=${encodeURIComponent(next)}`} replace />;
+  }
+
+  // No navigate() here — logout() flips isAuthenticated to false and the guard
+  // above redirects to /dang-nhap reactively on the next render.
+  const handleLogout = () => {
+    logout();
+  };
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -80,7 +102,7 @@ function MainLayout() {
 
         <button
           type="button"
-          onClick={() => router.navigate('/dang-nhap')}
+          onClick={handleLogout}
           className="mt-auto flex items-center gap-3 px-4 py-3 rounded-xl text-body-md text-error hover:bg-error/10 transition-colors"
         >
           <FontAwesomeIcon icon={faRightFromBracket} className="w-4 h-4" />

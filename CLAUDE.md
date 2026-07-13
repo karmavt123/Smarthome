@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Start of session:** read `DATABASE.md` before writing any form, service, or data-shaped UI. It documents the backend DB schema (tables, fields, enums, nullable/sensitive fields) — the source of truth for what data actually exists and its shape. Cross-check any form field, mock data field, or API payload assumption against it before building.
+**Start of session:** read `DATABASE.md` before writing any form, service, or data-shaped UI, and `AUTH.md` before touching anything auth-related (login/register/logout, tokens, protected routes). These are the source of truth for what data/endpoints actually exist — cross-check any form field, mock data field, or API payload assumption against them before building.
 
 ## Commands
 
@@ -33,14 +33,15 @@ Vite 6 + React 19. No state manager, no UI library yet. ESLint config lives in `
 src/
 ├── assets/        # static files: images, fonts, icons
 ├── components/    # reusable UI components with no business logic (Button, Card, Modal...)
+├── contexts/      # React Context providers (AuthContext...) — components that hold app-wide state
 ├── layouts/       # page shell components that wrap <Outlet> (MainLayout, AuthLayout...)
 ├── pages/         # one file per route — equivalent to Vue's views/ (HomePage, LoginPage...)
-├── hooks/         # custom React hooks (useDevices, useAuth...)
+├── hooks/         # custom React hooks (useDevices, useAuth, useRouter...)
 ├── services/      # API call functions, grouped by domain (deviceService.js, authService.js)
 ├── utils/         # pure helper functions with no React deps
 ├── styles/        # global SCSS: _variables.scss, _mixins.scss
 ├── App.js         # route tree only — no UI logic here
-└── index.js       # ReactDOM.render + BrowserRouter only
+└── index.js       # ReactDOM.render + BrowserRouter + AuthProvider
 ```
 
 **Naming rules:**
@@ -63,6 +64,13 @@ src/
 - `components/` is pure UI — receives props only, no service/hook calls inside
 
 **API layer:**
-- `src/services/apiClient.js` — singleton `ApiClient` bọc axios. Tự gắn Bearer token từ `localStorage`. Auto redirect `/login` khi 401.
+- `src/services/apiClient.js` — singleton `ApiClient` bọc axios. Access token giữ in-memory (`this.accessToken`, không lưu localStorage — tránh XSS theo `AUTH.md`), tự gắn `Authorization: Bearer`. Refresh token lưu `localStorage` (key `refreshToken`), tự động refresh-and-retry một lần khi gặp 401 (bỏ qua request tới chính `/auth/*` để tránh loop); nếu refresh thất bại thì `clearTokens()` + gọi `onUnauthorized` callback (do `AuthContext` set) để dọn state phía app.
 - Base URL lấy từ `VITE_API_URL` trong `.env` (mặc định `http://localhost:8000/api`).
 - Tạo service mới: copy pattern `deviceService.js` — object chứa các method gọi `apiClient.get/post/put/patch/delete`.
+- **Case convention:** backend tự xử lý convert `snake_case` ⟷ `camelCase` ở middleware — FE gửi/nhận thuần `camelCase`, không cần (và không được) tự convert case ở đâu cả. Không dùng `humps` hay bất kỳ lib convert case nào ở frontend.
+
+**Auth flow** (xem chi tiết endpoint ở `AUTH.md`):
+- `src/contexts/AuthContext.js` (`AuthProvider`) + `src/hooks/useAuth.js` — nguồn sự thật duy nhất cho `user`, `isAuthenticated`, `isLoading` (đang bootstrap session lúc reload), và `login`/`signUp`/`logout`. Luôn dùng `useAuth()`, không tự đọc token/localStorage ở nơi khác.
+- Bootstrap lúc reload: nếu có `refreshToken` trong `localStorage` → gọi `/auth/refresh-token` để lấy `accessToken` mới, khôi phục `user` đã cache ở `localStorage` (key `authUser`, chỉ cache profile không nhạy cảm — không phải token). Effect này có guard `useRef` chống chạy 2 lần do React StrictMode (refresh token dùng 1 lần, chạy 2 lần sẽ tự xóa mất session vừa tạo) — không được bỏ guard này.
+- **Route guard nằm ngay trong layout, không phải component riêng:** `MainLayout` — nếu `isAuthenticated === false` thì `<Navigate to="/dang-nhap?next=<path hiện tại>" replace />`; `AuthLayout` (`/dang-nhap`, `/dang-ky`, `/quen-mat-khau`) — nếu `isAuthenticated === true` thì đọc `next` từ `useRouter().queryParams.next` và `<Navigate to={next || '/'} replace />`. Cả hai chờ `isLoading` xong trước khi quyết định, tránh redirect nhầm lúc đang bootstrap.
+- **Không tự gọi `navigate()` sau khi `login`/`signUp` thành công ở page** — `AuthLayout` là nơi DUY NHẤT quyết định điều hướng sau khi `isAuthenticated` đổi. Gọi thêm `navigate()` ở page sẽ đua với guard này và có thể ghi đè `next` (đã từng là bug thật, xem git history `LoginPage.js`).

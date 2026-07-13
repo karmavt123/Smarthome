@@ -2,19 +2,39 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEnvelope, faLock, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
+import useAuth from '~/hooks/useAuth';
 
 function LoginPage() {
-  const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const { login } = useAuth();
 
-  const handleSubmit = (e) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      await login(email, password);
+    } catch (err) {
+      setError(err?.message || 'Đăng nhập thất bại, vui lòng thử lại.');
+      setSubmitting(false);
+    }
   };
 
   return (
     <>
       <div className="bg-surface-container rounded-xl border border-outline-variant/30 p-6">
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          {error && (
+            <p className="text-body-md text-error bg-error/10 border border-error/30 rounded-lg px-4 py-3">
+              {error}
+            </p>
+          )}
+
           <div className="flex flex-col gap-2">
             <label
               htmlFor="email"
@@ -26,7 +46,10 @@ function LoginPage() {
             <input
               id="email"
               type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="name@example.com"
+              required
               className="w-full rounded-lg bg-surface-container-low border border-outline-variant/40 px-4 py-3 text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:border-secondary"
             />
           </div>
@@ -48,7 +71,10 @@ function LoginPage() {
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
+                required
                 className="w-full rounded-lg bg-surface-container-low border border-outline-variant/40 px-4 py-3 pr-11 text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:border-secondary"
               />
               <button
@@ -62,21 +88,12 @@ function LoginPage() {
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-body-md text-on-surface-variant cursor-pointer">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="w-4 h-4 rounded accent-secondary"
-            />
-            Ghi nhớ đăng nhập
-          </label>
-
           <button
             type="submit"
-            className="w-full rounded-lg bg-secondary text-on-secondary font-medium py-3 text-body-md hover:opacity-90 transition-opacity"
+            disabled={submitting}
+            className="w-full rounded-lg bg-secondary text-on-secondary font-medium py-3 text-body-md hover:opacity-90 transition-opacity disabled:opacity-60"
           >
-            Đăng nhập
+            {submitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </button>
         </form>
       </div>

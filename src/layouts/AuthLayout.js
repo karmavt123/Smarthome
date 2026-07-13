@@ -1,6 +1,17 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, Navigate } from 'react-router-dom';
+import useAuth from '~/hooks/useAuth';
+import useRouter from '~/hooks/useRouter';
 
 function AuthLayout() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
+
+  if (isLoading) return null;
+  if (isAuthenticated) {
+    const next = router.queryParams.next;
+    return <Navigate to={next ? decodeURIComponent(next) : '/'} replace />;
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-[28rem]">

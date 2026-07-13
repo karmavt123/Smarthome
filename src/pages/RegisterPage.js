@@ -2,19 +2,48 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUser, faEnvelope, faLock, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
+import useAuth from '~/hooks/useAuth';
 
 function RegisterPage() {
+  const { signUp } = useAuth();
+
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+
+    if (password !== confirmPassword) {
+      setError('Mật khẩu xác nhận không khớp.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await signUp({ fullName, email, password });
+    } catch (err) {
+      setError(err?.message || 'Tạo tài khoản thất bại, vui lòng thử lại.');
+      setSubmitting(false);
+    }
   };
 
   return (
     <>
       <div className="bg-surface-container rounded-xl border border-outline-variant/30 p-6">
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          {error && (
+            <p className="text-body-md text-error bg-error/10 border border-error/30 rounded-lg px-4 py-3">
+              {error}
+            </p>
+          )}
+
           <div className="flex flex-col gap-2">
             <label
               htmlFor="fullName"
@@ -26,7 +55,10 @@ function RegisterPage() {
             <input
               id="fullName"
               type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
               placeholder="Nguyễn Văn A"
+              required
               className="w-full rounded-lg bg-surface-container-low border border-outline-variant/40 px-4 py-3 text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:border-secondary"
             />
           </div>
@@ -42,7 +74,10 @@ function RegisterPage() {
             <input
               id="email"
               type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="name@example.com"
+              required
               className="w-full rounded-lg bg-surface-container-low border border-outline-variant/40 px-4 py-3 text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:border-secondary"
             />
           </div>
@@ -59,7 +94,10 @@ function RegisterPage() {
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
+                required
                 className="w-full rounded-lg bg-surface-container-low border border-outline-variant/40 px-4 py-3 pr-11 text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:border-secondary"
               />
               <button
@@ -85,7 +123,10 @@ function RegisterPage() {
               <input
                 id="confirmPassword"
                 type={showConfirmPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
+                required
                 className="w-full rounded-lg bg-surface-container-low border border-outline-variant/40 px-4 py-3 pr-11 text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:border-secondary"
               />
               <button
@@ -104,9 +145,10 @@ function RegisterPage() {
 
           <button
             type="submit"
-            className="w-full rounded-lg bg-secondary text-on-secondary font-medium py-3 text-body-md hover:opacity-90 transition-opacity"
+            disabled={submitting}
+            className="w-full rounded-lg bg-secondary text-on-secondary font-medium py-3 text-body-md hover:opacity-90 transition-opacity disabled:opacity-60"
           >
-            Tạo tài khoản
+            {submitting ? 'Đang tạo tài khoản...' : 'Tạo tài khoản'}
           </button>
         </form>
       </div>
