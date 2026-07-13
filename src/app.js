@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const swaggerUi = require('swagger-ui-express');
 
 const swaggerSpec = require('./config/swagger');
+const caseConversion = require('./middlewares/case.middleware');
 const healthRoutes = require('./routes/health.routes');
 const devicesRoutes = require('./routes/devices.routes');
 const authRoutes = require('./routes/auth.routes');
@@ -17,6 +18,8 @@ app.use(morgan('dev'));
 app.use(express.json());
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+app.use('/api', caseConversion);
 
 app.use('/api', healthRoutes);
 app.use('/api', devicesRoutes);

@@ -28,17 +28,17 @@ router.use('/devices', requireAuth);
  *         application/json:
  *           schema:
  *             type: object
- *             required: [home_id, name, device_code, device_type]
+ *             required: [homeId, name, deviceCode, deviceType]
  *             properties:
- *               home_id:
+ *               homeId:
  *                 type: integer
- *               room_id:
+ *               roomId:
  *                 type: integer
  *               name:
  *                 type: string
- *               device_code:
+ *               deviceCode:
  *                 type: string
- *               device_type:
+ *               deviceType:
  *                 type: string
  *                 enum: [light, fan, door, sensor]
  *     responses:

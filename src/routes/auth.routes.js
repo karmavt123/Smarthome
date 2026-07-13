@@ -14,9 +14,9 @@ const router = express.Router();
  *         application/json:
  *           schema:
  *             type: object
- *             required: [full_name, email, password]
+ *             required: [fullName, email, password]
  *             properties:
- *               full_name:
+ *               fullName:
  *                 type: string
  *               email:
  *                 type: string
@@ -68,9 +68,9 @@ router.post('/auth/sign-in', authController.signIn);
  *         application/json:
  *           schema:
  *             type: object
- *             required: [refresh_token]
+ *             required: [refreshToken]
  *             properties:
- *               refresh_token:
+ *               refreshToken:
  *                 type: string
  *     responses:
  *       204:
@@ -89,9 +89,9 @@ router.post('/auth/sign-out', authController.signOut);
  *         application/json:
  *           schema:
  *             type: object
- *             required: [refresh_token]
+ *             required: [refreshToken]
  *             properties:
- *               refresh_token:
+ *               refreshToken:
  *                 type: string
  *     responses:
  *       200:
