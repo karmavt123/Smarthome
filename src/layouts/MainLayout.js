@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faTableCellsLarge,
@@ -16,7 +16,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 const NAV_ITEMS = [
-  { to: '/tong-quan', label: 'Tổng quan', icon: faTableCellsLarge },
+  { to: '/tong-quan', label: 'Tổng quan', icon: faTableCellsLarge, matchPaths: ['/'] },
   { to: '/phong', label: 'Phòng', icon: faHouse },
   { to: '/an-ninh', label: 'An ninh', icon: faShieldHalved },
   { to: '/thong-ke', label: 'Thống kê', icon: faChartColumn },
@@ -26,6 +26,7 @@ const NAV_ITEMS = [
 
 function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -57,23 +58,24 @@ function MainLayout() {
         </div>
 
         <nav className="flex flex-col gap-1">
-          {NAV_ITEMS.map(({ to, label, icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-body-md transition-colors ${
+          {NAV_ITEMS.map(({ to, label, icon, matchPaths = [] }) => {
+            const isActive = location.pathname === to || matchPaths.includes(location.pathname);
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={() => setSidebarOpen(false)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-body-md transition-colors ${
                   isActive
-                    ? 'bg-secondary/10 text-secondary font-medium'
+                    ? 'bg-secondary/15 text-secondary font-semibold shadow-[0_0_18px_2px_rgba(123,208,255,0.3)]'
                     : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
-                }`
-              }
-            >
-              <FontAwesomeIcon icon={icon} className="w-4 h-4" />
-              {label}
-            </NavLink>
-          ))}
+                }`}
+              >
+                <FontAwesomeIcon icon={icon} className="w-4 h-4" />
+                {label}
+              </NavLink>
+            );
+          })}
         </nav>
 
         <div className="mt-auto flex items-center gap-3 rounded-lg bg-surface-container p-3">
