@@ -3,6 +3,7 @@ import MainLayout from './layouts/MainLayout';
 import AuthLayout from './layouts/AuthLayout';
 import HomePage from './pages/HomePage';
 import RoomsPage from './pages/RoomsPage';
+import SecurityPage from './pages/SecurityPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
@@ -15,6 +16,7 @@ function App() {
         <Route index element={<HomePage />} />
         <Route path="tong-quan" element={<HomePage />} />
         <Route path="phong" element={<RoomsPage />} />
+        <Route path="an-ninh" element={<SecurityPage />} />
       </Route>
       <Route element={<AuthLayout />}>
         <Route path="/dang-nhap" element={<LoginPage />} />

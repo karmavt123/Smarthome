@@ -42,19 +42,21 @@ function Modal({ open, onClose, title, children }) {
           visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
         }`}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/30">
-          <h2 id="modal-title" className="text-body-lg font-semibold text-on-surface">
-            {title}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Đóng"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-          >
-            <FontAwesomeIcon icon={faXmark} className="w-4 h-4" />
-          </button>
-        </div>
+        {title && (
+          <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/30">
+            <h2 id="modal-title" className="text-body-lg font-semibold text-on-surface">
+              {title}
+            </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Đóng"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+            >
+              <FontAwesomeIcon icon={faXmark} className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         <div className="p-6">{children}</div>
       </div>

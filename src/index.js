@@ -1,9 +1,15 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import { config } from '@fortawesome/fontawesome-svg-core';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+
+// FontAwesome auto-injects its own unlayered CSS (.svg-inline--fa { width: 1.25em })
+// which beats any Tailwind @layer utility class regardless of specificity. Disable it
+// so Tailwind's w-*/h-* classes control icon sizing app-wide.
+config.autoAddCss = false;
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
