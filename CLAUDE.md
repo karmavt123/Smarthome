@@ -21,6 +21,8 @@ Vite 6 + React 19. No state manager, no UI library yet. ESLint config lives in `
 
 **Routing:** React Router v7 (`react-router-dom`). `BrowserRouter` wraps `<App>` in `src/index.js`. Routes defined in `App.js` using nested `Routes` / `Route`. Layout routes use `<Outlet>`.
 
+**Always use `src/hooks/useRouter.js` instead of raw `react-router-dom` hooks.** Never call `useNavigate`, `useLocation`, `useParams`, or `useSearchParams` directly outside of `useRouter.js` itself. `useRouter()` returns `{ navigate, path, params, queryParams, searchParams, setSearchParams, location, goBack, goForward }` — one hook, one import, for both pages and layouts.
+
 **Styling:**
 - **Tailwind CSS v4** — `postcss.config.js` uses `@tailwindcss/postcss`. Directives loaded via `@import "tailwindcss"` at top of `src/index.css`. No `tailwind.config.js` — v4 is CSS-first.
 - **SCSS** — use `.scss` / `.module.scss` extensions, CRA compiles automatically. Global variables in `src/styles/_variables.scss`.

@@ -2,6 +2,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDroplet, faSun } from '@fortawesome/free-solid-svg-icons';
 
 function climateLabel(temperature) {
+  if (typeof temperature !== 'number') return 'Chưa có dữ liệu';
   if (temperature >= 20 && temperature <= 26) return 'Ổn định';
   if (temperature < 20) return 'Hơi lạnh';
   return 'Hơi nóng';
@@ -34,7 +35,13 @@ function RoomClimateCard({ roomName, temperature, humidity, light, sensorsOnline
         </div>
       </div>
 
-      <p className="text-label-md text-tertiary font-medium mt-2">{climateLabel(temperature)}</p>
+      <p
+        className={`text-label-md font-medium mt-2 ${
+          typeof temperature === 'number' ? 'text-tertiary' : 'text-outline'
+        }`}
+      >
+        {climateLabel(temperature)}
+      </p>
       <p className="text-body-md font-semibold text-on-surface mt-3">{roomName}</p>
       <p className="text-label-sm text-outline mt-0.5">Cảm biến online: {sensorsOnline}</p>
 

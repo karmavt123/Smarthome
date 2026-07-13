@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEnvelope, faLock, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
-import { faGoogle, faApple } from '@fortawesome/free-brands-svg-icons';
 
 function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -17,7 +16,10 @@ function LoginPage() {
       <div className="bg-surface-container rounded-xl border border-outline-variant/30 p-6">
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
-            <label htmlFor="email" className="flex items-center gap-2 text-label-md text-on-surface-variant">
+            <label
+              htmlFor="email"
+              className="flex items-center gap-2 text-label-md text-on-surface-variant"
+            >
               <FontAwesomeIcon icon={faEnvelope} className="w-4 h-4" />
               Email
             </label>
@@ -31,7 +33,10 @@ function LoginPage() {
 
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <label htmlFor="password" className="flex items-center gap-2 text-label-md text-on-surface-variant">
+              <label
+                htmlFor="password"
+                className="flex items-center gap-2 text-label-md text-on-surface-variant"
+              >
                 <FontAwesomeIcon icon={faLock} className="w-4 h-4" />
                 Mật khẩu
               </label>
@@ -74,29 +79,6 @@ function LoginPage() {
             Đăng nhập
           </button>
         </form>
-
-        <div className="flex items-center gap-3 my-6">
-          <div className="flex-1 h-px bg-outline-variant/30" />
-          <span className="text-label-sm text-outline tracking-wide">HOẶC TIẾP TỤC VỚI</span>
-          <div className="flex-1 h-px bg-outline-variant/30" />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            className="flex items-center justify-center gap-2 rounded-lg border border-outline-variant/40 bg-surface-container-low py-2.5 text-body-md text-on-surface hover:bg-surface-container-high transition-colors"
-          >
-            <FontAwesomeIcon icon={faGoogle} className="w-4 h-4" style={{ color: '#4285F4' }} />
-            Google
-          </button>
-          <button
-            type="button"
-            className="flex items-center justify-center gap-2 rounded-lg border border-outline-variant/40 bg-surface-container-low py-2.5 text-body-md text-on-surface hover:bg-surface-container-high transition-colors"
-          >
-            <FontAwesomeIcon icon={faApple} className="w-4 h-4" />
-            Apple
-          </button>
-        </div>
       </div>
 
       <p className="text-center text-body-md text-outline mt-6">
@@ -105,12 +87,6 @@ function LoginPage() {
           Tạo tài khoản ngay
         </Link>
       </p>
-
-      <div className="flex items-center justify-center gap-4 mt-4 text-label-md text-outline">
-        <Link to="/bao-mat" className="hover:text-on-surface-variant">Bảo mật</Link>
-        <Link to="/dieu-khoan" className="hover:text-on-surface-variant">Điều khoản</Link>
-        <Link to="/ho-tro" className="hover:text-on-surface-variant">Hỗ trợ</Link>
-      </div>
     </>
   );
 }

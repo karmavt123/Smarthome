@@ -16,7 +16,10 @@ function ForgotPasswordPage() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
-            <label htmlFor="email" className="flex items-center gap-2 text-label-md text-on-surface-variant">
+            <label
+              htmlFor="email"
+              className="flex items-center gap-2 text-label-md text-on-surface-variant"
+            >
               <FontAwesomeIcon icon={faEnvelope} className="w-4 h-4" />
               Email
             </label>
@@ -43,12 +46,6 @@ function ForgotPasswordPage() {
           <FontAwesomeIcon icon={faArrowLeft} className="w-4 h-4" />
           Quay lại đăng nhập
         </Link>
-      </div>
-
-      <div className="flex items-center justify-center gap-4 mt-6 text-label-md text-outline">
-        <Link to="/bao-mat" className="hover:text-on-surface-variant">Bảo mật</Link>
-        <Link to="/dieu-khoan" className="hover:text-on-surface-variant">Điều khoản</Link>
-        <Link to="/ho-tro" className="hover:text-on-surface-variant">Hỗ trợ</Link>
       </div>
     </>
   );

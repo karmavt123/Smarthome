@@ -7,13 +7,25 @@ import RoomTabs from '~/components/RoomTabs';
 import RoomClimateCard from '~/components/RoomClimateCard';
 import QuickControlCard from '~/components/QuickControlCard';
 import AddDeviceForm from '~/components/AddDeviceForm';
+import AddRoomForm from '~/components/AddRoomForm';
 
-const ROOMS = [
+const INITIAL_ROOMS = [
   { id: 'phong-khach', name: 'Phòng khách' },
   { id: 'nha-bep', name: 'Nhà bếp' },
   { id: 'phong-ngu', name: 'Phòng ngủ' },
   { id: 'san-vuon', name: 'Sân vườn' },
 ];
+
+const DEFAULT_CLIMATE = { temperature: '--', humidity: 0, light: 0, sensorsOnline: 0 };
+
+const slugify = (name) =>
+  name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
 
 const CLIMATE_BY_ROOM = {
   'phong-khach': { temperature: 22.5, humidity: 48, light: 350, sensorsOnline: 3 },
@@ -43,17 +55,27 @@ const DEVICE_TYPE_META = {
 
 function RoomsPage() {
   const router = useRouter();
+  const [rooms, setRooms] = useState(INITIAL_ROOMS);
   const [devices, setDevices] = useState(INITIAL_DEVICES);
   const [modalOpen, setModalOpen] = useState(false);
+  const [roomModalOpen, setRoomModalOpen] = useState(false);
 
-  const activeRoomId = ROOMS.some((room) => room.id === router.queryParams.id)
+  const activeRoomId = rooms.some((room) => room.id === router.queryParams.id)
     ? router.queryParams.id
-    : ROOMS[0].id;
-  const activeRoom = ROOMS.find((room) => room.id === activeRoomId);
+    : rooms[0].id;
+  const activeRoom = rooms.find((room) => room.id === activeRoomId);
   const roomDevices = devices.filter((device) => device.roomId === activeRoomId);
-  const climate = CLIMATE_BY_ROOM[activeRoomId];
+  const climate = CLIMATE_BY_ROOM[activeRoomId] || DEFAULT_CLIMATE;
 
   const selectRoom = (roomId) => router.navigate(`/phong?id=${roomId}`);
+
+  const addRoom = (name) => {
+    let id = slugify(name) || `phong-${rooms.length + 1}`;
+    if (rooms.some((room) => room.id === id)) id = `${id}-${rooms.length + 1}`;
+    setRooms((prev) => [...prev, { id, name }]);
+    setRoomModalOpen(false);
+    router.navigate(`/phong?id=${id}`);
+  };
 
   const toggleDevice = (id) => {
     setDevices((prev) =>
@@ -80,7 +102,12 @@ function RoomsPage() {
       </div>
 
       <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
-        <RoomTabs rooms={ROOMS} activeId={activeRoomId} onSelect={selectRoom} />
+        <RoomTabs
+          rooms={rooms}
+          activeId={activeRoomId}
+          onSelect={selectRoom}
+          onAdd={() => setRoomModalOpen(true)}
+        />
         <button
           type="button"
           onClick={() => setModalOpen(true)}
@@ -128,7 +155,11 @@ function RoomsPage() {
       </div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Thêm thiết bị mới">
-        <AddDeviceForm rooms={ROOMS} onCancel={() => setModalOpen(false)} />
+        <AddDeviceForm rooms={rooms} onCancel={() => setModalOpen(false)} />
+      </Modal>
+
+      <Modal open={roomModalOpen} onClose={() => setRoomModalOpen(false)} title="Thêm phòng mới">
+        <AddRoomForm onSubmit={addRoom} onCancel={() => setRoomModalOpen(false)} />
       </Modal>
     </div>
   );

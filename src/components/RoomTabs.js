@@ -1,4 +1,7 @@
-function RoomTabs({ rooms, activeId, onSelect }) {
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPlus } from '@fortawesome/free-solid-svg-icons';
+
+function RoomTabs({ rooms, activeId, onSelect, onAdd }) {
   return (
     <div className="flex items-center gap-2 overflow-x-auto">
       {rooms.map((room) => (
@@ -15,6 +18,14 @@ function RoomTabs({ rooms, activeId, onSelect }) {
           {room.name}
         </button>
       ))}
+      <button
+        type="button"
+        onClick={onAdd}
+        aria-label="Thêm phòng"
+        className="shrink-0 w-9 h-9 rounded-full border border-dashed border-outline-variant/40 text-outline flex items-center justify-center hover:bg-surface-container-high hover:text-on-surface-variant transition-colors"
+      >
+        <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
+      </button>
     </div>
   );
 }
