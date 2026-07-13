@@ -6,7 +6,6 @@ import Modal from '~/components/Modal';
 import RoomTabs from '~/components/RoomTabs';
 import RoomClimateCard from '~/components/RoomClimateCard';
 import QuickControlCard from '~/components/QuickControlCard';
-import AddDeviceTile from '~/components/AddDeviceTile';
 import AddDeviceForm from '~/components/AddDeviceForm';
 
 const ROOMS = [
@@ -57,18 +56,22 @@ function RoomsPage() {
   const selectRoom = (roomId) => router.navigate(`/phong?id=${roomId}`);
 
   const toggleDevice = (id) => {
-    setDevices((prev) => prev.map((device) => (device.id === id ? { ...device, checked: !device.checked } : device)));
+    setDevices((prev) =>
+      prev.map((device) => (device.id === id ? { ...device, checked: !device.checked } : device))
+    );
   };
 
   const turnOffAll = () => {
     setDevices((prev) =>
-      prev.map((device) => (device.roomId === activeRoomId ? { ...device, checked: false } : device))
+      prev.map((device) =>
+        device.roomId === activeRoomId ? { ...device, checked: false } : device
+      )
     );
   };
 
   return (
     <div className="p-6 md:p-8">
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
         <h1 className="text-headline-md font-semibold text-on-surface">Phòng & Thiết bị</h1>
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-tertiary/15 text-tertiary text-label-sm font-medium">
           <span className="w-1.5 h-1.5 rounded-full bg-current" />
@@ -107,13 +110,13 @@ function RoomsPage() {
               />
             );
           })}
-          <AddDeviceTile onClick={() => setModalOpen(true)} />
         </div>
       </div>
 
       <div className="flex items-center justify-between gap-4 bg-surface-container-low rounded-xl border border-outline-variant/30 px-5 py-4 mt-6">
         <p className="text-body-md text-on-surface-variant">
-          <span className="font-semibold text-on-surface">{roomDevices.length}</span> thiết bị trong {activeRoom.name.toLowerCase()}
+          <span className="font-semibold text-on-surface">{roomDevices.length}</span> thiết bị trong{' '}
+          {activeRoom.name.toLowerCase()}
         </p>
         <button
           type="button"
