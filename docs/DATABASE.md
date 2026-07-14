@@ -11,11 +11,11 @@ Quy ước chung:
 ## Sơ đồ quan hệ (tổng quan)
 
 ```
-users ──< home_members >── homes ──< rooms ──< devices ──< sensors ──< sensor_readings
-  │                           │                  │
-  │                           ├──< alert_rules ──┘ (qua sensor_id)
-  │                           ├──< alerts ──< notifications
-  │                           └──< face_profiles
+users ──< homes ──< rooms ──< devices ──< sensors ──< sensor_readings
+  │         │                  │
+  │         ├──< alert_rules ──┘ (qua sensor_id)
+  │         ├──< alerts ──< notifications
+  │         └──< face_profiles
   │
   ├──< refresh_tokens
   ├──< device_actions >── devices
@@ -42,24 +42,14 @@ Người dùng hệ thống (chủ nhà / thành viên).
 | status | enum `active \| inactive` | default `active` |
 
 ### homes
-Một "nhà" — đơn vị gốc chứa phòng, thiết bị, cảnh báo.
+Một "nhà" — đơn vị gốc chứa phòng, thiết bị, cảnh báo. Mỗi nhà thuộc về đúng 1 user (1-nhiều, không phải nhiều-nhiều).
 
 | Field | Kiểu | Ghi chú |
 |---|---|---|
 | id | Int | PK |
+| user_id | Int | FK → users, cascade delete — chủ nhà |
 | name | String | |
 | address | String? | |
-
-### home_members
-Quan hệ nhiều-nhiều giữa `users` và `homes`, kèm vai trò.
-
-| Field | Kiểu | Ghi chú |
-|---|---|---|
-| home_id | Int | FK → homes, cascade delete |
-| user_id | Int | FK → users, cascade delete |
-| member_role | enum `owner \| member` | default `member` |
-
-Ràng buộc unique: `(home_id, user_id)` — 1 user chỉ có 1 vai trò trong 1 nhà.
 
 ### rooms
 Phòng thuộc 1 nhà.
@@ -215,7 +205,6 @@ FE không cần đụng bảng này trực tiếp — chỉ tương tác qua API
 |---|---|
 | users_role | admin, user |
 | users_status | active, inactive |
-| home_members_member_role | owner, member |
 | devices_device_type | light, fan, door, sensor |
 | devices_connection_status | online, offline |
 | sensors_sensor_type | temperature, humidity, light |

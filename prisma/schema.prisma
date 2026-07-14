@@ -140,31 +140,21 @@ model face_profiles {
   @@index([home_id, is_active], map: "idx_face_profiles_home_active")
 }
 
-model home_members {
-  id          Int                      @id @default(autoincrement()) @db.UnsignedInt
-  home_id     Int                      @db.UnsignedInt
-  user_id     Int                      @db.UnsignedInt
-  member_role home_members_member_role @default(member)
-  created_at  DateTime                 @default(now()) @db.DateTime(0)
-  homes       homes                    @relation(fields: [home_id], references: [id], onDelete: Cascade, map: "fk_home_members_home")
-  users       users                    @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_home_members_user")
-
-  @@unique([home_id, user_id], map: "uq_home_members")
-  @@index([user_id], map: "fk_home_members_user")
-}
-
 model homes {
   id            Int             @id @default(autoincrement()) @db.UnsignedInt
+  user_id       Int             @db.UnsignedInt
   name          String          @db.VarChar(100)
   address       String?         @db.VarChar(255)
   created_at    DateTime        @default(now()) @db.DateTime(0)
   updated_at    DateTime        @default(now()) @updatedAt @db.DateTime(0)
+  users         users           @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_homes_user")
   alert_rules   alert_rules[]
   alerts        alerts[]
   devices       devices[]
   face_profiles face_profiles[]
-  home_members  home_members[]
   rooms         rooms[]
+
+  @@index([user_id], map: "idx_homes_user")
 }
 
 model notifications {
@@ -250,7 +240,7 @@ model users {
   door_access_logs door_access_logs[]
   door_passwords   door_passwords[]
   face_profiles    face_profiles[]
-  home_members     home_members[]
+  homes            homes[]
   notifications    notifications[]
   refresh_tokens   refresh_tokens[]
   voice_commands   voice_commands[]
@@ -290,11 +280,6 @@ enum device_actions_action {
   turn_off
   open
   close
-}
-
-enum home_members_member_role {
-  owner
-  member
 }
 
 enum alert_rules_condition_operator {
