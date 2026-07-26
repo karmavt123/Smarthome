@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 import AuthLayout from './layouts/AuthLayout';
+import ProtectedLayout from './layouts/ProtectedLayout';
 import HomePage from './pages/HomePage';
 import RoomsPage from './pages/RoomsPage';
 import SecurityPage from './pages/SecurityPage';
@@ -29,7 +30,9 @@ function App() {
         <Route path="/dang-ky" element={<RegisterPage />} />
         <Route path="/quen-mat-khau" element={<ForgotPasswordPage />} />
       </Route>
-      <Route path="/chon-nha" element={<SelectHomePage />} />
+      <Route element={<ProtectedLayout />}>
+        <Route path="/chon-nha" element={<SelectHomePage />} />
+      </Route>
     </Routes>
   );
 }

@@ -5,6 +5,7 @@ import { config } from '@fortawesome/fontawesome-svg-core';
 import './index.css';
 import App from './App';
 import AuthProvider from './contexts/AuthContext';
+import HomeProvider from './contexts/HomeContext';
 import reportWebVitals from './reportWebVitals';
 
 // FontAwesome auto-injects its own unlayered CSS (.svg-inline--fa { width: 1.25em })
@@ -17,7 +18,9 @@ root.render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <App />
+        <HomeProvider>
+          <App />
+        </HomeProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>

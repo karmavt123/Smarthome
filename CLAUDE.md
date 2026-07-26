@@ -6,7 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+Requires Node.js >= 20 (`.nvmrc` pins `20`) — run `nvm use` before anything else. Older Node (e.g. 16/18) fails `npm run build` with `crypto$2.getRandomValues is not a function` since Vite 6 needs `Node`'s Web Crypto API.
+
 ```bash
+nvm use             # switch to the pinned Node version first
 npm start          # dev server at http://localhost:8000
 npm test           # Vitest in watch mode
 npm test -- run    # single run, no watch

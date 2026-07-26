@@ -3,6 +3,7 @@ import { NavLink, Outlet, Navigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import useRouter from '~/hooks/useRouter';
 import useAuth from '~/hooks/useAuth';
+import useHome from '~/hooks/useHome';
 import {
   faTableCellsLarge,
   faHouse,
@@ -31,8 +32,9 @@ function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
   const { isAuthenticated, isLoading, logout } = useAuth();
+  const { currentHomeId, isLoadingHomes } = useHome();
 
-  if (isLoading) {
+  if (isLoading || (isAuthenticated && isLoadingHomes)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <FontAwesomeIcon icon={faSpinner} className="w-6 h-6 text-secondary animate-spin" />
@@ -43,6 +45,10 @@ function MainLayout() {
   if (!isAuthenticated) {
     const next = router.path + router.location.search;
     return <Navigate to={`/dang-nhap?next=${encodeURIComponent(next)}`} replace />;
+  }
+
+  if (!currentHomeId) {
+    return <Navigate to="/chon-nha" replace />;
   }
 
   // No navigate() here — logout() flips isAuthenticated to false and the guard
