@@ -1,5 +1,7 @@
 const express = require('express');
 const devicesController = require('../controllers/devices.controller');
+const deviceCommandController = require('../controllers/device-command.controller');
+const telemetryController = require('../controllers/telemetry.controller');
 const requireAuth = require('../middlewares/auth.middleware');
 
 const router = express.Router();
@@ -47,6 +49,44 @@ router.use('/devices', requireAuth);
  */
 router.get('/devices', devicesController.index);
 router.post('/devices', devicesController.create);
+
+/**
+ * @openapi
+ * /api/devices/{id}/commands:
+ *   post:
+ *     summary: Queue a device command
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [action]
+ *             properties:
+ *               action: { type: string, enum: [turn_on, turn_off, open, close, set_speed, set_color] }
+ *               value: { description: Required for set_speed and set_color }
+ *               commandId: { type: string, format: uuid, description: Optional idempotency key }
+ *     responses:
+ *       202: { description: Command queued as pending }
+ */
+router.post('/devices/:id/commands', deviceCommandController.create);
+
+/**
+ * @openapi
+ * /api/devices/{id}/heartbeat:
+ *   post:
+ *     summary: Record a device heartbeat
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Device marked online }
+ */
+router.post('/devices/:id/heartbeat', telemetryController.heartbeat);
 
 /**
  * @openapi

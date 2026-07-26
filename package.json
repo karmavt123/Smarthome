@@ -9,6 +9,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test": "jest --runInBand",
+    "test:simulator": "jest --runInBand tests/simulator-values.test.js tests/alert-evaluation.test.js tests/voice-parser.test.js tests/simulator.integration.test.js",
     "seed": "node prisma/seed.js"
   },
   "prisma": {

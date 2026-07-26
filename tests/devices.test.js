@@ -9,13 +9,14 @@ let home;
 let accessToken;
 
 beforeAll(async () => {
-  home = await prisma.homes.create({ data: { name: 'Test Home' } });
-
   const signUp = await request(app)
     .post('/api/auth/sign-up')
     .send({ full_name: 'Devices Test', email, password });
 
   accessToken = signUp.body.accessToken;
+  home = await prisma.homes.create({
+    data: { name: 'Test Home', user_id: signUp.body.user.id },
+  });
 });
 
 afterAll(async () => {
