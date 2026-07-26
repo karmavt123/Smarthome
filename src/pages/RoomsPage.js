@@ -1,7 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faLightbulb, faFan, faLock, faPlus } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import useRouter from '~/hooks/useRouter';
+import useHome from '~/hooks/useHome';
+import useDeviceCommand from '~/hooks/useDeviceCommand';
+import dashboardService from '~/services/dashboardService';
+import roomService from '~/services/roomService';
+import deviceService from '~/services/deviceService';
+import {
+  CONTROLLABLE_TYPES,
+  DEVICE_TYPE_ICON,
+  isDeviceOn,
+  getNextAction,
+  getStatusLabel,
+} from '~/utils/deviceStatus';
 import Modal from '~/components/Modal';
 import RoomTabs from '~/components/RoomTabs';
 import RoomClimateCard from '~/components/RoomClimateCard';
@@ -9,87 +21,152 @@ import QuickControlCard from '~/components/QuickControlCard';
 import AddDeviceForm from '~/components/AddDeviceForm';
 import AddRoomForm from '~/components/AddRoomForm';
 
-const INITIAL_ROOMS = [
-  { id: 'phong-khach', name: 'Phòng khách' },
-  { id: 'nha-bep', name: 'Nhà bếp' },
-  { id: 'phong-ngu', name: 'Phòng ngủ' },
-  { id: 'san-vuon', name: 'Sân vườn' },
-];
+const REFRESH_INTERVAL_MS = 5000;
 
-const DEFAULT_CLIMATE = { temperature: '--', humidity: 0, light: 0, sensorsOnline: 0 };
+function getRoomClimate(room, devices) {
+  const env = room.environment || {};
+  const sensorsOnline = devices.filter(
+    (d) => d.room?.id === room.id && d.deviceType === 'sensor' && d.connectionStatus === 'online'
+  ).length;
 
-const slugify = (name) =>
-  name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-
-const CLIMATE_BY_ROOM = {
-  'phong-khach': { temperature: 22.5, humidity: 48, light: 350, sensorsOnline: 3 },
-  'nha-bep': { temperature: 24.8, humidity: 55, light: 420, sensorsOnline: 2 },
-  'phong-ngu': { temperature: 21, humidity: 50, light: 120, sensorsOnline: 2 },
-  'san-vuon': { temperature: 27.3, humidity: 60, light: 800, sensorsOnline: 1 },
-};
-
-const INITIAL_DEVICES = [
-  { id: 1, roomId: 'phong-khach', type: 'light', name: 'Đèn Trần Chính', checked: true },
-  { id: 2, roomId: 'phong-khach', type: 'light', name: 'Đèn Bàn Sofa', checked: true },
-  { id: 3, roomId: 'phong-khach', type: 'fan', name: 'Quạt Trần', checked: false },
-  { id: 4, roomId: 'phong-khach', type: 'door', name: 'Cửa Ban Công', checked: true },
-  { id: 5, roomId: 'nha-bep', type: 'light', name: 'Đèn Bếp', checked: true },
-  { id: 6, roomId: 'nha-bep', type: 'fan', name: 'Quạt Hút Mùi', checked: false },
-  { id: 7, roomId: 'phong-ngu', type: 'light', name: 'Đèn Ngủ', checked: false },
-  { id: 8, roomId: 'phong-ngu', type: 'door', name: 'Cửa Phòng', checked: true },
-  { id: 9, roomId: 'san-vuon', type: 'light', name: 'Đèn Sân Vườn', checked: false },
-  { id: 10, roomId: 'san-vuon', type: 'fan', name: 'Quạt Thông Gió', checked: false },
-];
-
-const DEVICE_TYPE_META = {
-  light: { icon: faLightbulb, onLabel: 'Đang bật', offLabel: 'Đang tắt' },
-  fan: { icon: faFan, onLabel: 'Đang bật', offLabel: 'Đang tắt' },
-  door: { icon: faLock, onLabel: 'Đã khóa', offLabel: 'Đã mở' },
-};
+  return {
+    temperature: env.temperature?.value,
+    humidity: env.humidity?.value,
+    light: env.light?.value,
+    sensorsOnline,
+  };
+}
 
 function RoomsPage() {
   const router = useRouter();
-  const [rooms, setRooms] = useState(INITIAL_ROOMS);
-  const [devices, setDevices] = useState(INITIAL_DEVICES);
-  const [modalOpen, setModalOpen] = useState(false);
+  const { currentHomeId } = useHome();
+  const { toggle, getOptimisticAction, errorFor } = useDeviceCommand();
+
+  const [dashboard, setDashboard] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+
+  const [deviceModalOpen, setDeviceModalOpen] = useState(false);
+  const [isSubmittingDevice, setIsSubmittingDevice] = useState(false);
+  const [deviceError, setDeviceError] = useState(null);
+
   const [roomModalOpen, setRoomModalOpen] = useState(false);
+  const [isSubmittingRoom, setIsSubmittingRoom] = useState(false);
+  const [roomError, setRoomError] = useState(null);
 
-  const activeRoomId = rooms.some((room) => room.id === router.queryParams.id)
-    ? router.queryParams.id
-    : rooms[0].id;
-  const activeRoom = rooms.find((room) => room.id === activeRoomId);
-  const roomDevices = devices.filter((device) => device.roomId === activeRoomId);
-  const climate = CLIMATE_BY_ROOM[activeRoomId] || DEFAULT_CLIMATE;
+  const fetchDashboard = useCallback(async () => {
+    try {
+      const data = await dashboardService.get(currentHomeId);
+      setDashboard(data);
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err?.message || 'Không thể tải dữ liệu, thử lại sau.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentHomeId]);
 
-  const selectRoom = (roomId) => router.navigate(`/phong?id=${roomId}`);
+  useEffect(() => {
+    fetchDashboard();
+    const interval = setInterval(fetchDashboard, REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [fetchDashboard]);
 
-  const addRoom = (name) => {
-    let id = slugify(name) || `phong-${rooms.length + 1}`;
-    if (rooms.some((room) => room.id === id)) id = `${id}-${rooms.length + 1}`;
-    setRooms((prev) => [...prev, { id, name }]);
-    setRoomModalOpen(false);
-    router.navigate(`/phong?id=${id}`);
+  const handleToggle = (device) => {
+    const nextAction = getNextAction(device, getOptimisticAction(device.id));
+    toggle(device.id, nextAction, { onSettled: () => fetchDashboard() });
   };
 
-  const toggleDevice = (id) => {
-    setDevices((prev) =>
-      prev.map((device) => (device.id === id ? { ...device, checked: !device.checked } : device))
+  const handleAddRoom = async (name) => {
+    setIsSubmittingRoom(true);
+    setRoomError(null);
+    try {
+      const room = await roomService.create({ name, homeId: currentHomeId });
+      await fetchDashboard();
+      setRoomModalOpen(false);
+      router.navigate(`/phong?roomId=${room.id}`);
+    } catch (err) {
+      setRoomError(err?.status === 409 ? 'Tên phòng đã tồn tại.' : err?.message || 'Không thể tạo phòng.');
+    } finally {
+      setIsSubmittingRoom(false);
+    }
+  };
+
+  const handleAddDevice = async (data) => {
+    setIsSubmittingDevice(true);
+    setDeviceError(null);
+    try {
+      await deviceService.create({ ...data, homeId: currentHomeId });
+      await fetchDashboard();
+      setDeviceModalOpen(false);
+    } catch (err) {
+      setDeviceError(err?.message || 'Không thể thêm thiết bị.');
+    } finally {
+      setIsSubmittingDevice(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <FontAwesomeIcon icon={faSpinner} className="w-6 h-6 text-secondary animate-spin" />
+      </div>
     );
-  };
+  }
+
+  if (loadError && !dashboard) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <p className="text-body-md text-error">{loadError}</p>
+      </div>
+    );
+  }
+
+  const { rooms, devices } = dashboard;
+  const requestedRoomId = Number(router.queryParams.roomId);
+  const activeRoomId = rooms.some((room) => room.id === requestedRoomId) ? requestedRoomId : rooms[0]?.id;
+  const activeRoom = rooms.find((room) => room.id === activeRoomId);
+  const roomDevices = devices.filter((device) => device.room?.id === activeRoomId);
+  const controllableRoomDevices = roomDevices.filter((d) => CONTROLLABLE_TYPES.includes(d.deviceType));
+  const climate = activeRoom ? getRoomClimate(activeRoom, devices) : { sensorsOnline: 0 };
+
+  const selectRoom = (roomId) => router.navigate(`/phong?roomId=${roomId}`);
 
   const turnOffAll = () => {
-    setDevices((prev) =>
-      prev.map((device) =>
-        device.roomId === activeRoomId ? { ...device, checked: false } : device
-      )
-    );
+    controllableRoomDevices.forEach((device) => {
+      if (!isDeviceOn(device, getOptimisticAction(device.id))) return;
+      toggle(device.id, device.deviceType === 'door' ? 'close' : 'turn_off', {
+        onSettled: () => fetchDashboard(),
+      });
+    });
   };
+
+  const roomModal = (
+    <Modal open={roomModalOpen} onClose={() => setRoomModalOpen(false)} title="Thêm phòng mới">
+      <AddRoomForm
+        onSubmit={handleAddRoom}
+        onCancel={() => setRoomModalOpen(false)}
+        isSubmitting={isSubmittingRoom}
+        error={roomError}
+      />
+    </Modal>
+  );
+
+  if (!activeRoom) {
+    return (
+      <div className="p-6 md:p-8">
+        <p className="text-body-md text-outline">Chưa có phòng nào trong nhà này.</p>
+        <button
+          type="button"
+          onClick={() => setRoomModalOpen(true)}
+          className="mt-4 rounded-lg bg-secondary text-on-secondary font-medium px-4 py-2 text-body-md hover:opacity-90 transition-opacity"
+        >
+          Thêm phòng mới
+        </button>
+        {roomModal}
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 md:p-8">
@@ -102,15 +179,10 @@ function RoomsPage() {
       </div>
 
       <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
-        <RoomTabs
-          rooms={rooms}
-          activeId={activeRoomId}
-          onSelect={selectRoom}
-          onAdd={() => setRoomModalOpen(true)}
-        />
+        <RoomTabs rooms={rooms} activeId={activeRoomId} onSelect={selectRoom} onAdd={() => setRoomModalOpen(true)} />
         <button
           type="button"
-          onClick={() => setModalOpen(true)}
+          onClick={() => setDeviceModalOpen(true)}
           className="flex items-center gap-2 text-secondary text-body-md hover:underline shrink-0"
         >
           <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
@@ -124,16 +196,17 @@ function RoomsPage() {
         </div>
 
         <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-4 content-start">
-          {roomDevices.map((device) => {
-            const meta = DEVICE_TYPE_META[device.type];
+          {controllableRoomDevices.map((device) => {
+            const optimisticAction = getOptimisticAction(device.id);
             return (
               <QuickControlCard
                 key={device.id}
-                icon={meta.icon}
+                icon={DEVICE_TYPE_ICON[device.deviceType]}
                 label={device.name}
-                status={device.checked ? meta.onLabel : meta.offLabel}
-                checked={device.checked}
-                onToggle={() => toggleDevice(device.id)}
+                status={getStatusLabel(device, optimisticAction)}
+                checked={isDeviceOn(device, optimisticAction)}
+                error={errorFor(device.id)}
+                onToggle={() => handleToggle(device)}
               />
             );
           })}
@@ -154,13 +227,17 @@ function RoomsPage() {
         </button>
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Thêm thiết bị mới">
-        <AddDeviceForm rooms={rooms} onCancel={() => setModalOpen(false)} />
+      <Modal open={deviceModalOpen} onClose={() => setDeviceModalOpen(false)} title="Thêm thiết bị mới">
+        <AddDeviceForm
+          rooms={rooms}
+          onSubmit={handleAddDevice}
+          onCancel={() => setDeviceModalOpen(false)}
+          isSubmitting={isSubmittingDevice}
+          error={deviceError}
+        />
       </Modal>
 
-      <Modal open={roomModalOpen} onClose={() => setRoomModalOpen(false)} title="Thêm phòng mới">
-        <AddRoomForm onSubmit={addRoom} onCancel={() => setRoomModalOpen(false)} />
-      </Modal>
+      {roomModal}
     </div>
   );
 }

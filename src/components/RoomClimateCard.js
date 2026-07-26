@@ -11,7 +11,8 @@ function climateLabel(temperature) {
 function RoomClimateCard({ roomName, temperature, humidity, light, sensorsOnline }) {
   const radius = 42;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference * (1 - humidity / 100);
+  const humidityRatio = typeof humidity === 'number' ? humidity / 100 : 0;
+  const offset = circumference * (1 - humidityRatio);
 
   return (
     <div className="bg-surface-container rounded-xl border border-outline-variant/30 p-4 flex flex-col items-center text-center h-full">
@@ -31,7 +32,9 @@ function RoomClimateCard({ roomName, temperature, humidity, light, sensorsOnline
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <p className="text-headline-md font-bold text-on-surface">{temperature}°</p>
+          <p className="text-headline-md font-bold text-on-surface">
+            {typeof temperature === 'number' ? `${temperature}°` : '--'}
+          </p>
         </div>
       </div>
 
@@ -51,14 +54,18 @@ function RoomClimateCard({ roomName, temperature, humidity, light, sensorsOnline
             <FontAwesomeIcon icon={faDroplet} className="w-3 h-3" />
             ĐỘ ẨM
           </p>
-          <p className="text-body-lg font-semibold text-on-surface mt-1">{humidity}%</p>
+          <p className="text-body-lg font-semibold text-on-surface mt-1">
+            {typeof humidity === 'number' ? `${humidity}%` : '--'}
+          </p>
         </div>
         <div className="text-left">
           <p className="flex items-center gap-1.5 text-label-sm text-outline">
             <FontAwesomeIcon icon={faSun} className="w-3 h-3" />
             ÁNH SÁNG
           </p>
-          <p className="text-body-lg font-semibold text-on-surface mt-1">{light} lux</p>
+          <p className="text-body-lg font-semibold text-on-surface mt-1">
+            {typeof light === 'number' ? `${light} lux` : '--'}
+          </p>
         </div>
       </div>
     </div>

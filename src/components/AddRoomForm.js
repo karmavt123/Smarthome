@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faSpinner } from '@fortawesome/free-solid-svg-icons';
 
-function AddRoomForm({ onSubmit, onCancel }) {
+function AddRoomForm({ onSubmit, onCancel, isSubmitting, error }) {
   const [name, setName] = useState('');
 
   const handleSubmit = (e) => {
@@ -26,18 +28,23 @@ function AddRoomForm({ onSubmit, onCancel }) {
         />
       </div>
 
+      {error && <p className="text-body-md text-error">{error}</p>}
+
       <div className="flex gap-3 mt-2">
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 rounded-lg border border-outline-variant/40 text-on-surface-variant font-medium py-3 text-body-md hover:bg-surface-container-high transition-colors"
+          disabled={isSubmitting}
+          className="flex-1 rounded-lg border border-outline-variant/40 text-on-surface-variant font-medium py-3 text-body-md hover:bg-surface-container-high transition-colors disabled:opacity-50"
         >
           Hủy
         </button>
         <button
           type="submit"
-          className="flex-1 rounded-lg bg-secondary text-on-secondary font-medium py-3 text-body-md hover:opacity-90 transition-opacity"
+          disabled={isSubmitting || !name.trim()}
+          className="flex-1 rounded-lg bg-secondary text-on-secondary font-medium py-3 text-body-md hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
         >
+          {isSubmitting && <FontAwesomeIcon icon={faSpinner} className="w-4 h-4 animate-spin" />}
           Tạo phòng
         </button>
       </div>

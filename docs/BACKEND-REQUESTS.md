@@ -92,6 +92,35 @@ FE vẫn giữ timeout cứng phía client (35s, `useDeviceCommand.js`) làm l�
 - `GET /api/auth/me` (hoặc `/api/users/me`) — lấy lại profile mới nhất (hiện FE đang dùng cache `authUser` trong localStorage, không tự refresh).
 - `PATCH /api/auth/me` (hoặc `/api/users/me`) — cập nhật `fullName`/`phone`/`avatarUrl`. Đổi password nên tách route riêng (`PATCH /api/auth/change-password`, cần `oldPassword`) vì lý do bảo mật, không gộp chung update profile.
 
+## 10. ✅ ĐÃ LÀM — Dashboard thiếu breakdown climate theo phòng
+
+Phát hiện lúc build Phase 4 (`RoomsPage` — climate card theo từng phòng). Response thật của `GET /api/dashboard?home_id=` hiện tại:
+
+```json
+"environment": {
+  "temperature": { "sensorId": 7, "value": 27.41, "unit": "°C", "history": [...] },
+  "humidity": { "sensorId": 8, "value": 53.9, "unit": "%", "history": [...] },
+  "light": { "sensorId": 9, "value": 652.55, "unit": "lux", "history": [...] }
+}
+```
+
+Đây là **1 bộ số liệu duy nhất cho cả home**, không gắn với `room`/`device` nào cả (không có field `roomId`/`deviceId` bên trong từng sensor). Trong khi đó, thực tế 1 home có thể có nhiều device loại `sensor` nằm ở nhiều phòng khác nhau (vd sample seed home 35: "Cảm biến phòng khách" ở phòng khách, "Cảm biến ánh sáng bếp" ở nhà bếp) — không rõ 3 `sensorId` (7/8/9) xuất hiện trong `environment` được chọn ra theo tiêu chí gì khi có nhiều sensor cùng loại trong 1 home.
+
+`new-backend-changes.md` mục 8 mô tả dashboard trả "mọi sensor kèm giá trị mới nhất" — nhưng response thật chỉ có đúng 3 key cố định (`temperature`/`humidity`/`light`), không phải danh sách theo từng sensor/device/room. FE không có cách nào hiển thị climate riêng cho từng phòng từ response hiện tại.
+
+**Cần backend làm 1 trong 2 hướng** (FE ưu tiên hướng 1 vì gọn, không cần thêm round-trip khi chuyển tab phòng):
+
+1. Thêm breakdown theo phòng vào response `GET /api/dashboard` — mỗi phần tử trong `rooms[]` có thêm field `environment` cùng shape với home-wide hiện tại (chỉ gồm sensor type nào thực sự có device trong phòng đó), vd:
+```json
+"rooms": [
+  { "id": 26, "name": "Phòng khách", "environment": { "temperature": {...} } },
+  { "id": 27, "name": "Phòng ngủ", "environment": {} }
+]
+```
+2. Hoặc: mỗi `devices[]` có `deviceType: "sensor"` trả kèm `sensors: [{id, sensorType, unit, latestValue}]` — FE tự group theo `device.room.id` để dựng climate card, không cần sửa response `rooms[]`.
+
+Backend đã làm theo hướng 1: mỗi phần tử `rooms[]` giờ có thêm `environment` cùng shape home-wide, chỉ gồm sensor type thực sự có device trong phòng đó (phòng không có sensor thì `environment: {}`). Field `environment` top-level (home-wide) vẫn giữ nguyên song song, không breaking change.
+
 ---
 
 ## Việc không cần hỏi thêm (đã đủ thông tin để code)

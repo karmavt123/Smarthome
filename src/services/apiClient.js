@@ -58,7 +58,10 @@ class ApiClient {
       }
     }
 
-    return Promise.reject(error.response?.data || error);
+    if (error.response) {
+      return Promise.reject({ ...error.response.data, status: error.response.status });
+    }
+    return Promise.reject(error);
   }
 
   setTokens({ accessToken, refreshToken }) {

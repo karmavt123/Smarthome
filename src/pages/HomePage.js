@@ -4,9 +4,6 @@ import {
   faTemperatureHalf,
   faDroplet,
   faSun,
-  faLightbulb,
-  faFan,
-  faLock,
   faBolt,
   faFingerprint,
   faSatelliteDish,
@@ -23,6 +20,13 @@ import useHome from '~/hooks/useHome';
 import useDeviceCommand from '~/hooks/useDeviceCommand';
 import dashboardService from '~/services/dashboardService';
 import formatRelativeTime from '~/utils/formatRelativeTime';
+import {
+  CONTROLLABLE_TYPES,
+  DEVICE_TYPE_ICON,
+  isDeviceOn,
+  getNextAction,
+  getStatusLabel,
+} from '~/utils/deviceStatus';
 import StatCard from '~/components/StatCard';
 import EnvironmentStatusCard from '~/components/EnvironmentStatusCard';
 import SecurityAlertsCard from '~/components/SecurityAlertsCard';
@@ -37,10 +41,6 @@ const SENSOR_META = {
   humidity: { icon: faDroplet, label: 'Độ ẩm', chartColor: '#7bd0ff', decimals: 0 },
   light: { icon: faSun, label: 'Ánh sáng', chartColor: '#7bd0ff', decimals: 0 },
 };
-
-const CONTROLLABLE_TYPES = ['light', 'fan', 'door'];
-
-const DEVICE_TYPE_ICON = { light: faLightbulb, fan: faFan, door: faLock, sensor: faMicrochip };
 
 const ROOM_ICON_RULES = [
   { keywords: ['khách'], icon: faCouch },
@@ -61,29 +61,6 @@ function getRoomIcon(name) {
   const lower = name.toLowerCase();
   const rule = ROOM_ICON_RULES.find(({ keywords }) => keywords.some((k) => lower.includes(k)));
   return rule ? rule.icon : faDoorOpen;
-}
-
-// `optimisticAction` (from useDeviceCommand) reflects a click that hasn't been
-// confirmed by the server yet — while set, it wins over the real device.status
-// so the UI flips instantly instead of waiting on the async command.
-function isDeviceOn(device, optimisticAction) {
-  if (optimisticAction) {
-    return device.deviceType === 'door' ? optimisticAction === 'open' : optimisticAction === 'turn_on';
-  }
-  return device.deviceType === 'door' ? device.status === 'open' : device.status === 'on';
-}
-
-function getNextAction(device, optimisticAction) {
-  const isOn = isDeviceOn(device, optimisticAction);
-  if (device.deviceType === 'door') return isOn ? 'close' : 'open';
-  return isOn ? 'turn_off' : 'turn_on';
-}
-
-function getStatusLabel(device, optimisticAction) {
-  if (!optimisticAction && device.connectionStatus === 'offline') return 'Mất kết nối';
-  const isOn = isDeviceOn(device, optimisticAction);
-  if (device.deviceType === 'door') return isOn ? 'Đang mở' : 'Đã đóng';
-  return isOn ? 'Đang bật' : 'Đang tắt';
 }
 
 function buildStat(sensorType, sensor) {
