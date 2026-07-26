@@ -121,6 +121,14 @@ Phát hiện lúc build Phase 4 (`RoomsPage` — climate card theo từng phòng
 
 Backend đã làm theo hướng 1: mỗi phần tử `rooms[]` giờ có thêm `environment` cùng shape home-wide, chỉ gồm sensor type thực sự có device trong phòng đó (phòng không có sensor thì `environment: {}`). Field `environment` top-level (home-wide) vẫn giữ nguyên song song, không breaking change.
 
+## 11. Bug nhỏ (không chặn) — `GET /sensors/:id/readings` với `to` date-only bị mất data cùng ngày
+
+Phát hiện lúc build Phase 5 (`StatisticsPage`). Gọi `GET /api/sensors/7/readings?from=2026-07-19&to=2026-07-26` trả `readings: []`, dù sensor có data thật lúc `13:40` ngày `2026-07-26` (nằm trong khoảng, xác nhận qua dashboard `history`). Gọi lại không kèm `from`/`to` thì thấy đủ data.
+
+Nghi vấn: `to` dạng date-only (`2026-07-26`, không có giờ) bị parse thành `00:00:00` đầu ngày đó, nên loại mất toàn bộ reading cùng ngày sau mốc `00:00:00` — không phải bug nghiêm trọng, `from`/`to` filter vẫn nên hiểu `to` là cuối ngày (`23:59:59`) khi client chỉ gửi date-only, hoặc tài liệu nên ghi rõ cần gửi full ISO datetime.
+
+FE không chặn bởi cái này — luôn gửi `from`/`to` dạng full ISO datetime (`new Date().toISOString()`) thay vì date-only để né vấn đề, không cần backend fix gấp.
+
 ---
 
 ## Việc không cần hỏi thêm (đã đủ thông tin để code)

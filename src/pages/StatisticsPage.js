@@ -1,43 +1,150 @@
+import { useState, useEffect, useCallback } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faSpinner } from '@fortawesome/free-solid-svg-icons';
+import useHome from '~/hooks/useHome';
+import dashboardService from '~/services/dashboardService';
+import telemetryService from '~/services/telemetryService';
+import deviceActionService from '~/services/deviceActionService';
+import alertService from '~/services/alertService';
 import SensorTrendCard from '~/components/SensorTrendCard';
 import DeviceActivityCard from '~/components/DeviceActivityCard';
 import AlertsSeverityCard from '~/components/AlertsSeverityCard';
 
-const SENSOR_TREND = [
-  { date: '27/09', temperature: 23.5, humidity: 52, light: 320 },
-  { date: '28/09', temperature: 24.1, humidity: 50, light: 340 },
-  { date: '29/09', temperature: 22.8, humidity: 55, light: 290 },
-  { date: '30/09', temperature: 25.2, humidity: 48, light: 410 },
-  { date: '01/10', temperature: 24.6, humidity: 49, light: 380 },
-  { date: '02/10', temperature: 24.0, humidity: 65, light: 350 },
-  { date: '03/10', temperature: 23.2, humidity: 58, light: 300 },
-];
+const TREND_DAYS = 7;
+const SENSOR_TYPES = ['temperature', 'humidity', 'light'];
+const CONTROL_METHODS = ['app', 'voice', 'face', 'automatic', 'manual'];
 
-const DEVICE_ACTIVITY = [
-  { date: '27/09', app: 8, voice: 2, face: 1, automatic: 4, manual: 0 },
-  { date: '28/09', app: 6, voice: 3, face: 2, automatic: 5, manual: 1 },
-  { date: '29/09', app: 10, voice: 1, face: 0, automatic: 3, manual: 0 },
-  { date: '30/09', app: 7, voice: 4, face: 2, automatic: 6, manual: 0 },
-  { date: '01/10', app: 9, voice: 2, face: 3, automatic: 4, manual: 1 },
-  { date: '02/10', app: 12, voice: 3, face: 4, automatic: 5, manual: 0 },
-  { date: '03/10', app: 5, voice: 1, face: 1, automatic: 3, manual: 0 },
-];
+// Group by UTC calendar day (not local time) so the bucket key is a plain
+// string comparison — reformatting it as dd/mm via string split avoids the
+// classic "new Date('YYYY-MM-DD') shifts a day in negative-UTC timezones" bug.
+function dayKey(isoDate) {
+  return isoDate.slice(0, 10);
+}
 
-const ALERTS_SEVERITY = [
-  { severity: 'info', count: 6 },
-  { severity: 'warning', count: 9 },
-  { severity: 'critical', count: 2 },
-];
+function formatDayLabel(key) {
+  const [, month, day] = key.split('-');
+  return `${day}/${month}`;
+}
+
+function buildSensorTrend(readingsBySensorType) {
+  const byDay = {};
+
+  SENSOR_TYPES.forEach((sensorType) => {
+    const sums = {};
+    (readingsBySensorType[sensorType] || []).forEach(({ value, capturedAt }) => {
+      const key = dayKey(capturedAt);
+      if (!sums[key]) sums[key] = { total: 0, count: 0 };
+      sums[key].total += value;
+      sums[key].count += 1;
+    });
+    Object.entries(sums).forEach(([key, { total, count }]) => {
+      if (!byDay[key]) byDay[key] = { key };
+      byDay[key][sensorType] = Number((total / count).toFixed(1));
+    });
+  });
+
+  return Object.values(byDay)
+    .sort((a, b) => (a.key < b.key ? -1 : 1))
+    .map(({ key, ...rest }) => ({ date: formatDayLabel(key), ...rest }));
+}
+
+function buildDeviceActivity(actions) {
+  const byDay = {};
+
+  actions.forEach(({ createdAt, controlMethod }) => {
+    const key = dayKey(createdAt);
+    if (!byDay[key]) {
+      byDay[key] = { key };
+      CONTROL_METHODS.forEach((method) => {
+        byDay[key][method] = 0;
+      });
+    }
+    if (CONTROL_METHODS.includes(controlMethod)) byDay[key][controlMethod] += 1;
+  });
+
+  return Object.values(byDay)
+    .sort((a, b) => (a.key < b.key ? -1 : 1))
+    .map(({ key, ...rest }) => ({ date: formatDayLabel(key), ...rest }));
+}
+
+function buildAlertsSeverity(alerts) {
+  const counts = alerts.reduce((acc, { severity }) => {
+    acc[severity] = (acc[severity] || 0) + 1;
+    return acc;
+  }, {});
+  return Object.entries(counts).map(([severity, count]) => ({ severity, count }));
+}
 
 function StatisticsPage() {
+  const { currentHomeId } = useHome();
+  const [sensorTrend, setSensorTrend] = useState([]);
+  const [deviceActivity, setDeviceActivity] = useState([]);
+  const [alertsSeverity, setAlertsSeverity] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const dashboard = await dashboardService.get(currentHomeId);
+
+      const now = new Date();
+      const from = new Date(now.getTime() - TREND_DAYS * 24 * 60 * 60 * 1000).toISOString();
+      const to = now.toISOString();
+
+      const readingsEntries = await Promise.all(
+        SENSOR_TYPES.map(async (sensorType) => {
+          const sensorId = dashboard.environment?.[sensorType]?.sensorId;
+          if (!sensorId) return [sensorType, []];
+          const { readings } = await telemetryService.getSensorReadings(sensorId, { from, to, limit: 500 });
+          return [sensorType, readings];
+        })
+      );
+
+      const [actions, alerts] = await Promise.all([
+        deviceActionService.list({ home_id: currentHomeId }),
+        alertService.listAlerts({ home_id: currentHomeId }),
+      ]);
+
+      setSensorTrend(buildSensorTrend(Object.fromEntries(readingsEntries)));
+      setDeviceActivity(buildDeviceActivity(actions));
+      setAlertsSeverity(buildAlertsSeverity(alerts));
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err?.message || 'Không thể tải dữ liệu thống kê.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentHomeId]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <FontAwesomeIcon icon={faSpinner} className="w-6 h-6 text-secondary animate-spin" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <p className="text-body-md text-error">{loadError}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 md:p-8 flex flex-col gap-6">
       <h1 className="text-headline-md font-semibold text-on-surface">Thống kê</h1>
 
-      <SensorTrendCard data={SENSOR_TREND} />
+      <SensorTrendCard data={sensorTrend} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <DeviceActivityCard data={DEVICE_ACTIVITY} />
-        <AlertsSeverityCard data={ALERTS_SEVERITY} />
+        <DeviceActivityCard data={deviceActivity} />
+        <AlertsSeverityCard data={alertsSeverity} />
       </div>
     </div>
   );
