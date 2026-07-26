@@ -38,6 +38,11 @@ Ghi chú cho FE:
 
 Field `environment` home-wide (`response.environment`) vẫn giữ nguyên, không breaking change.
 
+## ✅ Đã làm — Alert rules delete + fix doc condition_operator (mục 12, 13)
+
+- `DELETE /api/alert-rules/:id` — [alerts.routes.js:9](../src/routes/alerts.routes.js#L9). Scope theo user, 204 No Content. Nếu rule đã có `alerts` tham chiếu (`alert_rule_id`), xoá cứng bị chặn bởi FK → trả `409` kèm message gợi ý deactivate (`is_active: false` qua `PATCH`) thay vì xoá — `AlertRulesCard.js` nên bắt riêng case `409` này để hiển thị lý do, không phải lỗi chung chung.
+- `DATABASE.md` đã sửa lại mô tả `condition_operator`: API request/response luôn dùng `gt`/`lt`/`gte`/`lte`/`eq` (đúng như FE đang code), ký hiệu (`>`, `<`...) chỉ là giá trị lưu ở cột MySQL bên dưới qua `@map`, không bao giờ lộ ra ngoài API. Doc cũ ghi ngược, đã fix.
+
 ## 1. Homes — chưa có resource nào (Bắt buộc)
 
 `dashboard` nhận `home_id` làm tham số, `alert-rules`/`alerts`/`face-profiles` đều scope theo home — nghĩa là "home" đã tồn tại ở DB, nhưng không có route nào để FE tạo/xem/sửa/xoá:

@@ -1,7 +1,28 @@
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const prisma = require('../src/config/prisma');
 
 const SEED_PREFIX = 'Seed:';
+const DAY_MS = 24 * 60 * 60 * 1000;
+const HISTORY_DAYS = 7;
+const READINGS_PER_DAY = 48; // mỗi 30 phút
+const COMMANDS_PER_DEVICE_PER_DAY = 4;
+
+const CONTROL_METHODS = ['app', 'voice', 'face', 'automatic', 'manual'];
+const COMMAND_STATUSES = ['executed', 'executed', 'executed', 'failed', 'expired'];
+const ACTIONS_BY_DEVICE_TYPE = {
+  light: ['turn_on', 'turn_off', 'set_color'],
+  fan: ['turn_on', 'turn_off', 'set_speed'],
+  door: ['open', 'close'],
+};
+
+function randomFrom(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function daysAgo(days, hours = 0, minutes = 0) {
+  return new Date(Date.now() - days * DAY_MS - hours * 60 * 60 * 1000 - minutes * 60 * 1000);
+}
 
 function readingsFor(sensorType) {
   const ranges = {
@@ -11,9 +32,11 @@ function readingsFor(sensorType) {
   };
   const [min, max] = ranges[sensorType];
   const now = Date.now();
-  return Array.from({ length: 12 }, (_, i) => ({
+  const stepMs = DAY_MS / READINGS_PER_DAY;
+  const totalPoints = HISTORY_DAYS * READINGS_PER_DAY;
+  return Array.from({ length: totalPoints }, (_, i) => ({
     value: Number((min + Math.random() * (max - min)).toFixed(2)),
-    captured_at: new Date(now - (11 - i) * 5 * 60 * 1000),
+    captured_at: new Date(now - (totalPoints - 1 - i) * stepMs),
   }));
 }
 
@@ -38,7 +61,87 @@ async function seedSensor(deviceId, sensorType, unit, minValue, maxValue) {
   return sensor;
 }
 
-async function seedHome(userId, { name, address, rooms }) {
+async function seedDeviceCommands(userId, device) {
+  const actions = ACTIONS_BY_DEVICE_TYPE[device.device_type];
+  if (!actions) return; // sensor devices không nhận command
+
+  const data = [];
+  for (let day = 0; day < HISTORY_DAYS; day++) {
+    for (let i = 0; i < COMMANDS_PER_DEVICE_PER_DAY; i++) {
+      const action = randomFrom(actions);
+      const status = randomFrom(COMMAND_STATUSES);
+      const createdAt = daysAgo(day, Math.floor(Math.random() * 24), Math.floor(Math.random() * 60));
+      const value = action === 'set_speed'
+        ? Math.floor(Math.random() * 5) * 25
+        : action === 'set_color'
+          ? `#${Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0')}`
+          : null;
+
+      data.push({
+        id: crypto.randomUUID(),
+        device_id: device.id,
+        user_id: userId,
+        action,
+        ...(value == null ? {} : { value }),
+        control_method: randomFrom(CONTROL_METHODS),
+        status,
+        failure_reason: status === 'failed' ? 'Simulated device rejected the command' : null,
+        created_at: createdAt,
+        acknowledged_at: new Date(createdAt.getTime() + 800),
+        expires_at: new Date(createdAt.getTime() + 30 * 1000),
+      });
+    }
+  }
+
+  await prisma.device_commands.createMany({ data });
+}
+
+function alertContent(alertType, severity, homeName) {
+  const bySeverity = { critical: 'nghiêm trọng', warning: 'cảnh báo', info: 'cần chú ý' };
+  const map = {
+    environment: {
+      title: 'Cảnh báo môi trường',
+      message: `Chỉ số môi trường tại ${homeName} ở mức ${bySeverity[severity]}.`,
+    },
+    device_offline: {
+      title: 'Thiết bị mất kết nối',
+      message: `Một thiết bị tại ${homeName} vừa offline (${bySeverity[severity]}).`,
+    },
+    unauthorized_access: {
+      title: 'Truy cập trái phép',
+      message: `Phát hiện truy cập bất thường tại ${homeName} (${bySeverity[severity]}).`,
+    },
+  };
+  return map[alertType];
+}
+
+function seedAlertsData(homeId, homeName, perSeverity) {
+  const severities = ['critical', 'warning', 'info'];
+  const alertTypes = ['environment', 'device_offline', 'unauthorized_access'];
+  const statuses = ['unread', 'read', 'resolved'];
+  const data = [];
+
+  for (const severity of severities) {
+    for (let i = 0; i < perSeverity; i++) {
+      const alertType = randomFrom(alertTypes);
+      const content = alertContent(alertType, severity, homeName);
+      const createdAt = daysAgo(Math.floor(Math.random() * HISTORY_DAYS), Math.floor(Math.random() * 24), Math.floor(Math.random() * 60));
+      data.push({
+        home_id: homeId,
+        alert_type: alertType,
+        severity,
+        title: content.title,
+        message: content.message,
+        status: randomFrom(statuses),
+        created_at: createdAt,
+      });
+    }
+  }
+
+  return data;
+}
+
+async function seedHome(userId, { name, address, rooms, alertsPerSeverity }) {
   const home = await prisma.homes.create({
     data: { user_id: userId, name: `${SEED_PREFIX} ${name}`, address },
   });
@@ -63,6 +166,8 @@ async function seedHome(userId, { name, address, rooms }) {
         },
       });
 
+      await seedDeviceCommands(userId, device);
+
       for (const sensor of dev.sensors || []) {
         await seedSensor(device.id, sensor.type, sensor.unit, sensor.min, sensor.max);
       }
@@ -70,24 +175,7 @@ async function seedHome(userId, { name, address, rooms }) {
   }
 
   await prisma.alerts.createMany({
-    data: [
-      {
-        home_id: home.id,
-        alert_type: 'environment',
-        severity: 'warning',
-        title: 'Nhiệt độ cao bất thường',
-        message: `Nhiệt độ tại ${name} vượt ngưỡng cảnh báo.`,
-        status: 'unread',
-      },
-      {
-        home_id: home.id,
-        alert_type: 'device_offline',
-        severity: 'info',
-        title: 'Thiết bị mất kết nối',
-        message: `Một thiết bị tại ${name} vừa offline.`,
-        status: 'read',
-      },
-    ],
+    data: seedAlertsData(home.id, name, alertsPerSeverity),
   });
 
   return home;
@@ -107,12 +195,13 @@ async function main() {
     },
   });
 
-  // Dọn seed cũ (cascade xoá luôn rooms/devices/sensors/alerts con của home)
+  // Dọn seed cũ (cascade xoá luôn rooms/devices/sensors/sensor_readings/device_commands/alerts con của home)
   await prisma.homes.deleteMany({ where: { user_id: admin.id, name: { startsWith: SEED_PREFIX } } });
 
   const home1 = await seedHome(admin.id, {
     name: 'Nhà chính',
     address: '123 Đường ABC, Quận 1, TP.HCM',
+    alertsPerSeverity: 5,
     rooms: {
       'Phòng khách': [
         { name: 'Đèn phòng khách', code: 'seed-h1-livingroom-light', type: 'light', status: 'on', connection: 'online' },
@@ -148,6 +237,7 @@ async function main() {
   const home2 = await seedHome(admin.id, {
     name: 'Nhà villa',
     address: '456 Đường XYZ, Quận 7, TP.HCM',
+    alertsPerSeverity: 3,
     rooms: {
       'Phòng khách': [
         { name: 'Đèn phòng khách villa', code: 'seed-h2-livingroom-light', type: 'light', status: 'on', connection: 'online' },

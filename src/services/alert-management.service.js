@@ -93,6 +93,22 @@ async function updateAlertRule(userId, ruleId, payload) {
   return prisma.alert_rules.update({ where: { id: rule.id }, data });
 }
 
+async function deleteAlertRule(userId, ruleId) {
+  const rule = await prisma.alert_rules.findFirst({
+    where: { id: Number(ruleId), homes: { user_id: Number(userId) } },
+  });
+  if (!rule) throw new HttpError(404, 'Alert rule not found');
+
+  try {
+    await prisma.alert_rules.delete({ where: { id: rule.id } });
+  } catch (error) {
+    if (error.code === 'P2003') {
+      throw new HttpError(409, 'Cannot delete a rule that already has alerts; deactivate it instead');
+    }
+    throw error;
+  }
+}
+
 async function listAlerts(userId, query = {}) {
   const home = await resolveHome(userId, query.home_id);
   const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
@@ -133,6 +149,7 @@ module.exports = {
   listAlertRules,
   createAlertRule,
   updateAlertRule,
+  deleteAlertRule,
   listAlerts,
   updateAlert,
 };

@@ -99,7 +99,7 @@ Quy tắc cảnh báo do người dùng đặt (vd "nhiệt độ > 35 thì cả
 | home_id | Int | FK → homes, cascade delete |
 | sensor_id | Int? | FK → sensors (optional) |
 | name | String | |
-| condition_operator | enum `>` `<` `>=` `<=` `=` | lưu ý: giá trị thật trong DB là ký hiệu, không phải tên field Prisma (`gt`, `lt`...) |
+| condition_operator | enum `gt` `lt` `gte` `lte` `eq` | API request/response luôn dùng tên field Prisma (`gt`/`lt`/`gte`/`lte`/`eq`) — chỉ cột MySQL bên dưới lưu ký hiệu (`>`, `<`...) qua `@map`, không bao giờ lộ ký hiệu ra ngoài API |
 | threshold_value | Decimal(10,2) | |
 | severity | enum `info \| warning \| critical` | default `warning` |
 | is_active | Boolean | default `true` |
@@ -208,7 +208,7 @@ FE không cần đụng bảng này trực tiếp — chỉ tương tác qua API
 | devices_device_type | light, fan, door, sensor |
 | devices_connection_status | online, offline |
 | sensors_sensor_type | temperature, humidity, light |
-| alert_rules_condition_operator | `>`, `<`, `>=`, `<=`, `=` |
+| alert_rules_condition_operator | API: `gt`, `lt`, `gte`, `lte`, `eq` (cột MySQL lưu ký hiệu `>`/`<`/`>=`/`<=`/`=` qua `@map`, không lộ ra API) |
 | alert_rules_severity / alerts_severity | info, warning, critical |
 | alerts_alert_type | environment, unauthorized_access, device_offline |
 | alerts_status | unread, read, resolved |

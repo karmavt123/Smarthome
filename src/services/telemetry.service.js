@@ -35,9 +35,12 @@ function parseMessageId(messageId) {
   return value;
 }
 
-function parseHistoryDate(value, fieldName) {
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseHistoryDate(value, fieldName, endOfDay = false) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) throw new HttpError(400, `Invalid ${fieldName} date`);
+  if (endOfDay && DATE_ONLY_PATTERN.test(value)) parsed.setUTCHours(23, 59, 59, 999);
   return parsed;
 }
 
@@ -188,7 +191,7 @@ async function getHistory(userId, sensorId, query = {}) {
   const capturedAt = {};
 
   if (query.from) capturedAt.gte = parseHistoryDate(query.from, 'from');
-  if (query.to) capturedAt.lte = parseHistoryDate(query.to, 'to');
+  if (query.to) capturedAt.lte = parseHistoryDate(query.to, 'to', true);
   if (capturedAt.gte && capturedAt.lte && capturedAt.gte > capturedAt.lte) {
     throw new HttpError(400, 'from must be earlier than to');
   }

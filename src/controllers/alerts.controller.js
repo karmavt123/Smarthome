@@ -13,6 +13,11 @@ async function rulesUpdate(req, res) {
   res.json(serialize(await alertService.updateAlertRule(req.user.sub, req.params.id, req.body)));
 }
 
+async function rulesDestroy(req, res) {
+  await alertService.deleteAlertRule(req.user.sub, req.params.id);
+  res.status(204).end();
+}
+
 async function alertsIndex(req, res) {
   res.json(serialize(await alertService.listAlerts(req.user.sub, req.query)));
 }
@@ -21,4 +26,4 @@ async function alertsUpdate(req, res) {
   res.json(serialize(await alertService.updateAlert(req.user.sub, req.params.id, req.body.status)));
 }
 
-module.exports = { rulesIndex, rulesCreate, rulesUpdate, alertsIndex, alertsUpdate };
+module.exports = { rulesIndex, rulesCreate, rulesUpdate, rulesDestroy, alertsIndex, alertsUpdate };

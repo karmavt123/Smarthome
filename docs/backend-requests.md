@@ -22,3 +22,11 @@ function start() {
 Hệ quả khi deploy môi trường không dùng simulator (`SIMULATOR_ENABLED=false`): command gửi cho device thật mà không được ack sẽ treo mãi ở `pending`, không bao giờ chuyển `expired` — client polling `GET /api/device-actions/:id` không có cách nào biết lệnh đã "chết" để retry.
 
 **Đã fix** ([`src/simulator/runtime.js:62-78`](../src/simulator/runtime.js#L62-L78)): tách `Command timeout monitor` và `Offline monitor` ra khỏi gate `SIMULATOR_ENABLED` — 2 job này giờ chạy ngay khi `start()` chạy, không phụ thuộc flag. Chỉ `Simulator heartbeat` / `Simulator readings` (2 job thật sự chỉ sinh dữ liệu giả) mới return sớm nếu `SIMULATOR_ENABLED=false`.
+
+## 2. ✅ `GET /sensors/:id/readings` với `to` date-only bị mất data cùng ngày — đã fix
+
+Root cause đúng như FE nghi vấn: `new Date("2026-07-26")` parse thành `00:00:00.000Z`, nên `capturedAt.lte` loại hết reading cùng ngày sau mốc đó.
+
+**Đã fix** ([`src/services/telemetry.service.js:38-43,191`](../src/services/telemetry.service.js#L38-L43)): khi `to` match dạng date-only (`YYYY-MM-DD`), tự bump thành cuối ngày `23:59:59.999Z` trước khi query. `from` giữ nguyên hành vi cũ (đầu ngày) vì đúng ý nghĩa "từ ngày X". Verify: `getHistory(1, 7, { from: '2026-07-19', to: '2026-07-26' })` giờ trả đủ 12 reading (trước fix trả `[]`).
+
+FE có thể tiếp tục gửi full ISO datetime như đang làm — không bắt buộc đổi lại, cả 2 dạng đều ra kết quả đúng bây giờ.
