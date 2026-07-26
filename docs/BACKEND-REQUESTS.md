@@ -75,6 +75,16 @@ Bảng `notifications` đã có, sinh ra từ alert (`alert-evaluation.service.j
 
 Nếu backend chưa có kế hoạch làm feature này, FE tạm ẩn card này cũng được — không chặn cứng.
 
+## 9. ✅ ĐÃ LÀM — `expirePendingCommands` chết theo `SIMULATOR_ENABLED=false`
+
+Phát hiện lúc test Phase 3 (quick-control switch): gửi command cho device thật (`isSimulated: false`), switch bị disable "vĩnh viễn", Network tab spam request `GET /api/device-actions/:id` không dừng.
+
+Nguyên nhân — [`src/simulator/runtime.js:62-63`](../src/simulator/runtime.js#L62-L63): `start()` return sớm khi `SIMULATOR_ENABLED=false`, kéo theo cả `expirePendingCommands`/`markStaleDevicesOffline` không chạy dù 2 job này áp dụng cho mọi device, không riêng simulated — command pending không bao giờ tự chuyển `expired`.
+
+Backend đã fix ([`src/simulator/runtime.js:62-78`](../src/simulator/runtime.js#L62-L78)): tách 2 job này ra khỏi gate `SIMULATOR_ENABLED`, chạy độc lập ngay khi `start()` chạy.
+
+FE vẫn giữ timeout cứng phía client (35s, `useDeviceCommand.js`) làm lớp phòng thủ — không gỡ, đề phòng job backend die vì lý do khác (server restart, deploy...) mà FE không có cách nào biết ngoài tự giới hạn.
+
 ## 8. Cập nhật hồ sơ user — chưa có (Nên có)
 
 `AccountInfoCard.js` có form sửa `fullName`/`phone`/`avatarUrl`. `AUTH.md` chỉ có sign-up/sign-in/refresh/sign-out, không có endpoint update profile:

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faTemperatureHalf,
@@ -8,16 +8,21 @@ import {
   faFan,
   faLock,
   faBolt,
-  faSatelliteDish,
   faFingerprint,
-  faShieldHalved,
+  faSatelliteDish,
+  faMicrochip,
   faCouch,
   faKitchenSet,
   faBed,
   faTree,
-  faMicrochip,
+  faDoorOpen,
+  faSpinner,
 } from '@fortawesome/free-solid-svg-icons';
 import useRouter from '~/hooks/useRouter';
+import useHome from '~/hooks/useHome';
+import useDeviceCommand from '~/hooks/useDeviceCommand';
+import dashboardService from '~/services/dashboardService';
+import formatRelativeTime from '~/utils/formatRelativeTime';
 import StatCard from '~/components/StatCard';
 import EnvironmentStatusCard from '~/components/EnvironmentStatusCard';
 import SecurityAlertsCard from '~/components/SecurityAlertsCard';
@@ -25,113 +30,171 @@ import QuickControlCard from '~/components/QuickControlCard';
 import RoomCard from '~/components/RoomCard';
 import DeviceListCard from '~/components/DeviceListCard';
 
-const STATS = [
-  {
-    id: 'temperature',
-    icon: faTemperatureHalf,
-    label: 'Nhiệt độ',
-    value: 24,
-    unit: '°C',
-    trend: '+0.5°C',
-    trendClassName: 'text-tertiary',
-    chartColor: '#4edea3',
-    chartData: [
-      { value: 22 }, { value: 23 }, { value: 22.5 }, { value: 24 },
-      { value: 23.5 }, { value: 24.5 }, { value: 24 },
-    ],
-  },
-  {
-    id: 'humidity',
-    icon: faDroplet,
-    label: 'Độ ẩm',
-    value: 65,
-    unit: '%',
-    trend: 'Ổn định',
-    trendClassName: 'text-outline',
-    chartColor: '#7bd0ff',
-    chartData: [
-      { value: 63 }, { value: 66 }, { value: 62 }, { value: 67 },
-      { value: 64 }, { value: 68 }, { value: 65 },
-    ],
-  },
-  {
-    id: 'light',
-    icon: faSun,
-    label: 'Ánh sáng',
-    value: 350,
-    unit: ' lux',
-    trend: '-10%',
-    trendClassName: 'text-tertiary',
-    chartColor: '#7bd0ff',
-    chartData: [
-      { value: 400 }, { value: 380 }, { value: 420 }, { value: 360 },
-      { value: 390 }, { value: 340 }, { value: 350 },
-    ],
-  },
+const REFRESH_INTERVAL_MS = 5000;
+
+const SENSOR_META = {
+  temperature: { icon: faTemperatureHalf, label: 'Nhiệt độ', chartColor: '#4edea3', decimals: 1 },
+  humidity: { icon: faDroplet, label: 'Độ ẩm', chartColor: '#7bd0ff', decimals: 0 },
+  light: { icon: faSun, label: 'Ánh sáng', chartColor: '#7bd0ff', decimals: 0 },
+};
+
+const CONTROLLABLE_TYPES = ['light', 'fan', 'door'];
+
+const DEVICE_TYPE_ICON = { light: faLightbulb, fan: faFan, door: faLock, sensor: faMicrochip };
+
+const ROOM_ICON_RULES = [
+  { keywords: ['khách'], icon: faCouch },
+  { keywords: ['ngủ'], icon: faBed },
+  { keywords: ['bếp'], icon: faKitchenSet },
+  { keywords: ['vườn', 'sân'], icon: faTree },
 ];
 
-const INITIAL_CONTROLS = [
-  { id: 1, icon: faLightbulb, label: 'Đèn Phòng Khách', onLabel: 'Đang bật', offLabel: 'Đang tắt', checked: true },
-  { id: 2, icon: faFan, label: 'Quạt Nhà Bếp', onLabel: 'Đang bật', offLabel: 'Đang tắt', checked: false },
-  { id: 3, icon: faLock, label: 'Cửa Trước', onLabel: 'Đã khóa', offLabel: 'Đã mở', checked: true },
-  { id: 4, icon: faLightbulb, label: 'Đèn Sân Vườn', onLabel: 'Đang bật', offLabel: 'Đang tắt', checked: false },
-];
+const ALERT_TYPE_ICON = {
+  environment: faTemperatureHalf,
+  unauthorized_access: faFingerprint,
+  device_offline: faSatelliteDish,
+};
 
-const ROOMS = [
-  { id: 'phong-khach', icon: faCouch, name: 'Phòng khách', deviceCount: 6 },
-  { id: 'nha-bep', icon: faKitchenSet, name: 'Nhà bếp', deviceCount: 4 },
-  { id: 'phong-ngu', icon: faBed, name: 'Phòng ngủ', deviceCount: 3 },
-  { id: 'san-vuon', icon: faTree, name: 'Sân vườn', deviceCount: 2 },
-];
+const ALERT_SEVERITY_TONE = { critical: 'error', warning: 'secondary', info: 'tertiary' };
 
-const DEVICES = [
-  { id: 1, icon: faLightbulb, name: 'Đèn Phòng Khách', room: 'Phòng khách', statusLabel: 'Đang bật', online: true },
-  { id: 2, icon: faFan, name: 'Quạt Nhà Bếp', room: 'Nhà bếp', statusLabel: 'Đang tắt', online: true },
-  { id: 3, icon: faLock, name: 'Cửa Trước', room: 'Lối vào', statusLabel: 'Đã khóa', online: true },
-  { id: 4, icon: faMicrochip, name: 'Cảm biến nhiệt độ', room: 'Phòng khách', statusLabel: 'Mất kết nối', online: false },
-  { id: 5, icon: faLightbulb, name: 'Đèn Sân Vườn', room: 'Sân vườn', statusLabel: 'Đang tắt', online: true },
-];
+function getRoomIcon(name) {
+  const lower = name.toLowerCase();
+  const rule = ROOM_ICON_RULES.find(({ keywords }) => keywords.some((k) => lower.includes(k)));
+  return rule ? rule.icon : faDoorOpen;
+}
 
-const ALERTS = [
-  {
-    id: 1,
-    icon: faSatelliteDish,
-    tone: 'error',
-    title: 'Phát hiện chuyển động tại Sân sau',
-    meta: '2 phút trước • Camera số 4',
-  },
-  {
-    id: 2,
-    icon: faFingerprint,
-    tone: 'secondary',
-    title: 'Khóa cửa trước đã mở bằng vân tay',
-    meta: '1 giờ trước • Người dùng: Anh Quân',
-  },
-  {
-    id: 3,
-    icon: faShieldHalved,
-    tone: 'tertiary',
-    title: 'Hệ thống báo động đã được kích hoạt',
-    meta: '4 giờ trước • Tự động',
-  },
-];
+// `optimisticAction` (from useDeviceCommand) reflects a click that hasn't been
+// confirmed by the server yet — while set, it wins over the real device.status
+// so the UI flips instantly instead of waiting on the async command.
+function isDeviceOn(device, optimisticAction) {
+  if (optimisticAction) {
+    return device.deviceType === 'door' ? optimisticAction === 'open' : optimisticAction === 'turn_on';
+  }
+  return device.deviceType === 'door' ? device.status === 'open' : device.status === 'on';
+}
+
+function getNextAction(device, optimisticAction) {
+  const isOn = isDeviceOn(device, optimisticAction);
+  if (device.deviceType === 'door') return isOn ? 'close' : 'open';
+  return isOn ? 'turn_off' : 'turn_on';
+}
+
+function getStatusLabel(device, optimisticAction) {
+  if (!optimisticAction && device.connectionStatus === 'offline') return 'Mất kết nối';
+  const isOn = isDeviceOn(device, optimisticAction);
+  if (device.deviceType === 'door') return isOn ? 'Đang mở' : 'Đã đóng';
+  return isOn ? 'Đang bật' : 'Đang tắt';
+}
+
+function buildStat(sensorType, sensor) {
+  const meta = SENSOR_META[sensorType];
+  const history = sensor.history || [];
+  const first = history[0]?.value ?? sensor.value;
+  const diff = sensor.value - first;
+  const isStable = Math.abs(diff) < (sensorType === 'temperature' ? 0.5 : 3);
+
+  return {
+    id: sensorType,
+    icon: meta.icon,
+    label: meta.label,
+    value: sensor.value,
+    unit: sensorType === 'light' ? ` ${sensor.unit}` : sensor.unit,
+    trend: isStable ? 'Ổn định' : `${diff > 0 ? '+' : ''}${diff.toFixed(meta.decimals)}${sensor.unit}`,
+    trendClassName: isStable ? 'text-outline' : 'text-tertiary',
+    chartColor: meta.chartColor,
+    chartData: history.map(({ value }) => ({ value })),
+  };
+}
 
 function HomePage() {
-  const [controls, setControls] = useState(INITIAL_CONTROLS);
   const router = useRouter();
+  const { currentHomeId } = useHome();
+  const { toggle, getOptimisticAction, errorFor } = useDeviceCommand();
 
-  const toggleControl = (id) => {
-    setControls((prev) =>
-      prev.map((control) => (control.id === id ? { ...control, checked: !control.checked } : control))
-    );
+  const [dashboard, setDashboard] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+
+  const fetchDashboard = useCallback(async () => {
+    try {
+      const data = await dashboardService.get(currentHomeId);
+      setDashboard(data);
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err?.message || 'Không thể tải dữ liệu, thử lại sau.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentHomeId]);
+
+  useEffect(() => {
+    fetchDashboard();
+    const interval = setInterval(fetchDashboard, REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [fetchDashboard]);
+
+  const handleToggle = (device) => {
+    const nextAction = getNextAction(device, getOptimisticAction(device.id));
+    toggle(device.id, nextAction, { onSettled: () => fetchDashboard() });
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <FontAwesomeIcon icon={faSpinner} className="w-6 h-6 text-secondary animate-spin" />
+      </div>
+    );
+  }
+
+  if (loadError && !dashboard) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <p className="text-body-md text-error">{loadError}</p>
+      </div>
+    );
+  }
+
+  const stats = Object.entries(dashboard.environment)
+    .filter(([sensorType]) => SENSOR_META[sensorType])
+    .map(([sensorType, sensor]) => buildStat(sensorType, sensor));
+
+  const controllableDevices = dashboard.devices.filter((d) => CONTROLLABLE_TYPES.includes(d.deviceType));
+
+  const roomDeviceCounts = dashboard.devices.reduce((acc, device) => {
+    if (!device.room) return acc;
+    acc[device.room.id] = (acc[device.room.id] || 0) + 1;
+    return acc;
+  }, {});
+
+  const activeAlerts = dashboard.alerts.filter((a) => a.status !== 'resolved');
+  const environmentDescription =
+    activeAlerts.length === 0
+      ? 'Môi trường trong lành, không có cảnh báo nào đang hoạt động.'
+      : `${activeAlerts.length} cảnh báo đang hoạt động: ${activeAlerts.map((a) => a.title).join(', ')}`;
+
+  const alertItems = dashboard.alerts.map((alert) => ({
+    id: alert.id,
+    icon: ALERT_TYPE_ICON[alert.alertType] || faSatelliteDish,
+    tone: ALERT_SEVERITY_TONE[alert.severity] || 'secondary',
+    title: alert.title,
+    meta: `${formatRelativeTime(alert.createdAt)} • ${alert.message}`,
+  }));
+
+  const deviceListItems = dashboard.devices.map((device) => ({
+    id: device.id,
+    icon: DEVICE_TYPE_ICON[device.deviceType] || faMicrochip,
+    name: device.name,
+    room: device.room?.name || 'Chưa gán phòng',
+    statusLabel: getStatusLabel(device, getOptimisticAction(device.id)),
+    online: device.connectionStatus === 'online',
+  }));
 
   return (
     <div className="p-6 md:p-8">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 flex flex-col gap-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {STATS.map((stat) => (
+            {stats.map((stat) => (
               <StatCard key={stat.id} {...stat} />
             ))}
           </div>
@@ -142,43 +205,44 @@ function HomePage() {
               ĐIỀU KHIỂN NHANH
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {controls.map(({ id, icon, label, onLabel, offLabel, checked }) => (
-                <QuickControlCard
-                  key={id}
-                  icon={icon}
-                  label={label}
-                  status={checked ? onLabel : offLabel}
-                  checked={checked}
-                  onToggle={() => toggleControl(id)}
-                />
-              ))}
+              {controllableDevices.map((device) => {
+                const optimisticAction = getOptimisticAction(device.id);
+                return (
+                  <QuickControlCard
+                    key={device.id}
+                    icon={DEVICE_TYPE_ICON[device.deviceType]}
+                    label={device.name}
+                    status={getStatusLabel(device, optimisticAction)}
+                    checked={isDeviceOn(device, optimisticAction)}
+                    error={errorFor(device.id)}
+                    onToggle={() => handleToggle(device)}
+                  />
+                );
+              })}
             </div>
           </div>
 
           <div>
             <p className="text-label-sm text-outline tracking-wide mb-3">PHÒNG</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {ROOMS.map(({ id, icon, name, deviceCount }) => (
+              {dashboard.rooms.map((room) => (
                 <RoomCard
-                  key={id}
-                  icon={icon}
-                  name={name}
-                  deviceCount={deviceCount}
-                  onClick={() => router.navigate(`/phong?id=${id}`)}
+                  key={room.id}
+                  icon={getRoomIcon(room.name)}
+                  name={room.name}
+                  deviceCount={roomDeviceCounts[room.id] || 0}
+                  onClick={() => router.navigate(`/phong?roomId=${room.id}`)}
                 />
               ))}
             </div>
           </div>
 
-          <DeviceListCard devices={DEVICES} />
+          <DeviceListCard devices={deviceListItems} />
         </div>
 
         <div className="flex flex-col gap-6">
-          <EnvironmentStatusCard
-            title="An Toàn"
-            description="Môi trường trong lành, không có cảnh báo vượt ngưỡng. Chỉ số AQI hiện tại là 12 (Rất tốt)."
-          />
-          <SecurityAlertsCard alerts={ALERTS} />
+          <EnvironmentStatusCard status={dashboard.environmentStatus} description={environmentDescription} />
+          <SecurityAlertsCard alerts={alertItems} />
         </div>
       </div>
     </div>
