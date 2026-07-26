@@ -24,6 +24,20 @@ Ghi chú cho FE:
 
 Đã đủ để FE nối `SelectHomePage`, `AddHomeForm.js`, `AddHomeCard.js`, `RoomsPage`, `AddRoomForm.js`, `RoomCard.js`, `RoomTabs.js`, và dropdown chọn room trong `AddDeviceForm.js`.
 
+## ✅ Đã làm — Dashboard breakdown climate theo phòng (mục 10)
+
+`GET /api/dashboard?home_id=` giờ trả thêm `environment` bên trong mỗi phần tử `rooms[]` — [dashboard.service.js:32-66](../src/services/dashboard.service.js#L32-L66), cùng shape với `environment` home-wide hiện có, chỉ gồm sensor type thực sự có device trong phòng đó (phòng không có sensor thì `environment: {}`):
+
+```json
+"rooms": [
+  { "id": 26, "name": "Phòng khách", "environment": { "temperature": {...}, "humidity": {...} } },
+  { "id": 27, "name": "Phòng ngủ", "environment": {} },
+  { "id": 28, "name": "Nhà bếp", "environment": { "light": {...} } }
+]
+```
+
+Field `environment` home-wide (`response.environment`) vẫn giữ nguyên, không breaking change.
+
 ## 1. Homes — chưa có resource nào (Bắt buộc)
 
 `dashboard` nhận `home_id` làm tham số, `alert-rules`/`alerts`/`face-profiles` đều scope theo home — nghĩa là "home" đã tồn tại ở DB, nhưng không có route nào để FE tạo/xem/sửa/xoá:

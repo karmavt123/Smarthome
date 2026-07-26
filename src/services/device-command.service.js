@@ -201,7 +201,10 @@ async function listDeviceActions(userId, query = {}) {
 
   const commands = await prisma.device_commands.findMany({
     where: {
-      devices: { homes: { user_id: Number(userId) } },
+      devices: {
+        homes: { user_id: Number(userId) },
+        ...(query.home_id ? { home_id: Number(query.home_id) } : {}),
+      },
       ...(query.device_id ? { device_id: Number(query.device_id) } : {}),
       ...(statusFilter ? { status: statusFilter } : {}),
     },

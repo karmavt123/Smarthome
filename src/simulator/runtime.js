@@ -60,17 +60,21 @@ function addInterval(label, operation, milliseconds) {
 }
 
 function start() {
-  if (started || process.env.SIMULATOR_ENABLED === 'false') return;
+  if (started) return;
   started = true;
 
   const heartbeatMs = Math.max(Number(process.env.DEVICE_HEARTBEAT_SECONDS) || 5, 1) * 1000;
-  const readingMs = Math.max(Number(process.env.SIMULATOR_READING_SECONDS) || 5, 1) * 1000;
   const monitorMs = Math.min(heartbeatMs, 3000);
 
-  addInterval('Simulator heartbeat', sendSimulatedHeartbeats, heartbeatMs);
-  addInterval('Simulator readings', generateSimulatedReadings, readingMs);
+  // Áp dụng cho mọi device (kể cả board thật) — không được gate theo SIMULATOR_ENABLED.
   addInterval('Offline monitor', markStaleDevicesOffline, monitorMs);
   addInterval('Command timeout monitor', expirePendingCommands, monitorMs);
+
+  if (process.env.SIMULATOR_ENABLED === 'false') return;
+
+  const readingMs = Math.max(Number(process.env.SIMULATOR_READING_SECONDS) || 5, 1) * 1000;
+  addInterval('Simulator heartbeat', sendSimulatedHeartbeats, heartbeatMs);
+  addInterval('Simulator readings', generateSimulatedReadings, readingMs);
 }
 
 function stop() {

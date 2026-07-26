@@ -29,6 +29,7 @@ async function getDashboard(userId, homeId) {
   if (!home) throw new HttpError(404, 'Home not found. Bootstrap the simulator first.');
 
   const environment = {};
+  const roomEnvironments = {};
   for (const device of home.devices) {
     for (const sensor of device.sensors) {
       const history = [...sensor.sensor_readings]
@@ -38,7 +39,7 @@ async function getDashboard(userId, homeId) {
           captured_at: reading.captured_at,
           received_at: reading.created_at,
         }));
-      environment[sensor.sensor_type] = {
+      const entry = {
         sensor_id: sensor.id,
         value: history.at(-1)?.value ?? null,
         unit: sensor.unit,
@@ -46,6 +47,11 @@ async function getDashboard(userId, homeId) {
         max_value: sensor.max_value == null ? null : Number(sensor.max_value),
         history,
       };
+      environment[sensor.sensor_type] = entry;
+      if (device.room_id) {
+        const roomEnvironment = roomEnvironments[device.room_id] || (roomEnvironments[device.room_id] = {});
+        roomEnvironment[sensor.sensor_type] = entry;
+      }
     }
   }
 
@@ -54,7 +60,10 @@ async function getDashboard(userId, homeId) {
   return {
     server_time: new Date(),
     home: { id: home.id, name: home.name, address: home.address },
-    rooms: home.rooms,
+    rooms: home.rooms.map((room) => ({
+      ...room,
+      environment: roomEnvironments[room.id] || {},
+    })),
     environment,
     environment_status: activeAlerts.some((alert) => alert.severity === 'critical')
       ? 'critical'
