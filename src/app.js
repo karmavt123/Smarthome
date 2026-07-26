@@ -9,6 +9,8 @@ const swaggerSpec = require('./config/swagger');
 const caseConversion = require('./middlewares/case.middleware');
 const healthRoutes = require('./routes/health.routes');
 const devicesRoutes = require('./routes/devices.routes');
+const homesRoutes = require('./routes/homes.routes');
+const roomsRoutes = require('./routes/rooms.routes');
 const authRoutes = require('./routes/auth.routes');
 const telemetryRoutes = require('./routes/telemetry.routes');
 const deviceActionsRoutes = require('./routes/device-actions.routes');
@@ -31,6 +33,8 @@ app.use('/api', caseConversion);
 
 app.use('/api', healthRoutes);
 app.use('/api', devicesRoutes);
+app.use('/api', homesRoutes);
+app.use('/api', roomsRoutes);
 app.use('/api', authRoutes);
 app.use('/api', telemetryRoutes);
 app.use('/api', deviceActionsRoutes);
