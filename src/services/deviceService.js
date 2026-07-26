@@ -6,7 +6,8 @@ const deviceService = {
   create: (data) => apiClient.post('/devices', data),
   update: (id, data) => apiClient.put(`/devices/${id}`, data),
   delete: (id) => apiClient.delete(`/devices/${id}`),
-  toggle: (id) => apiClient.patch(`/devices/${id}/toggle`),
+  sendCommand: (id, payload) => apiClient.post(`/devices/${id}/commands`, payload),
+  heartbeat: (id) => apiClient.post(`/devices/${id}/heartbeat`),
 };
 
 export default deviceService;
