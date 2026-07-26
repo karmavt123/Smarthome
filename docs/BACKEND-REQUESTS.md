@@ -129,6 +129,14 @@ Nghi vấn: `to` dạng date-only (`2026-07-26`, không có giờ) bị parse th
 
 FE không chặn bởi cái này — luôn gửi `from`/`to` dạng full ISO datetime (`new Date().toISOString()`) thay vì date-only để né vấn đề, không cần backend fix gấp.
 
+## 12. ✅ ĐÃ LÀM — `DELETE /api/alert-rules/:id`
+
+Backend đã thêm route xoá. FE khôi phục lại nút xoá ở `AlertRulesCard.js` (`onDelete`), gọi `alertService.deleteRule(id)` — optimistic remove khỏi list, revert nếu request fail.
+
+## 13. ✅ ĐÃ LÀM — `DATABASE.md` đã sửa giá trị `alert_rules.condition_operator`
+
+Backend đã cập nhật doc khớp giá trị thật (`gt/lt/gte/lte/eq`). FE code từ đầu đã theo giá trị thật này, không cần đổi gì thêm.
+
 ---
 
 ## Việc không cần hỏi thêm (đã đủ thông tin để code)

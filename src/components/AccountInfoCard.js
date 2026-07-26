@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCircleUser } from '@fortawesome/free-solid-svg-icons';
 
-function AccountInfoCard({ initialName, initialEmail, initialPhone, role }) {
-  const [name, setName] = useState(initialName);
-  const [email, setEmail] = useState(initialEmail);
-  const [phone, setPhone] = useState(initialPhone);
+const ROLE_LABEL = { admin: 'Quản trị viên', user: 'Người dùng' };
+
+function AccountInfoCard({ user }) {
+  const [name, setName] = useState(user.fullName);
+  const [email, setEmail] = useState(user.email);
+  const [phone, setPhone] = useState(user.phone || '');
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -21,7 +23,7 @@ function AccountInfoCard({ initialName, initialEmail, initialPhone, role }) {
         </div>
         <div>
           <p className="text-body-md font-medium text-on-surface">{name}</p>
-          <p className="text-label-sm text-tertiary mt-0.5">{role === 'owner' ? 'Chủ nhà' : 'Thành viên'}</p>
+          <p className="text-label-sm text-tertiary mt-0.5">{ROLE_LABEL[user.role] || user.role}</p>
         </div>
       </div>
 
@@ -68,7 +70,9 @@ function AccountInfoCard({ initialName, initialEmail, initialPhone, role }) {
 
         <button
           type="submit"
-          className="self-start rounded-lg bg-secondary text-on-secondary font-medium px-5 py-2.5 text-body-md hover:opacity-90 transition-opacity"
+          disabled
+          title="Backend chưa có endpoint cập nhật hồ sơ"
+          className="self-start rounded-lg bg-secondary text-on-secondary font-medium px-5 py-2.5 text-body-md opacity-50 cursor-not-allowed"
         >
           Lưu thay đổi
         </button>
