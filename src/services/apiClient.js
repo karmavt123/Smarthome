@@ -82,8 +82,21 @@ class ApiClient {
     return this.client.get(url, { params });
   }
 
-  post(url, data) {
-    return this.client.post(url, data);
+  post(url, data, config) {
+    return this.client.post(url, data, config);
+  }
+
+  // `Content-Type: undefined` drops the instance's default 'application/json'
+  // header for this one request — axios then lets the browser set the correct
+  // multipart boundary itself, which it can only do when no Content-Type is
+  // pre-set. Face capture requests can take ~8-10s on a cold model load
+  // (see docs/FACE-ID-USAGE.md), so give them more room than the 10s default.
+  postForm(url, formData, config) {
+    return this.client.post(url, formData, {
+      timeout: 15000,
+      ...config,
+      headers: { 'Content-Type': undefined, ...config?.headers },
+    });
   }
 
   put(url, data) {

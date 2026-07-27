@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 
-function Modal({ open, onClose, title, children }) {
+function Modal({ open, onClose, title, children, dismissable = true }) {
+  const handleClose = useCallback(() => {
+    if (dismissable) onClose();
+  }, [dismissable, onClose]);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -17,11 +20,11 @@ function Modal({ open, onClose, title, children }) {
   useEffect(() => {
     if (!open) return undefined;
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') handleClose();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, onClose]);
+  }, [open, handleClose]);
 
   if (!open) return null;
 
@@ -31,7 +34,7 @@ function Modal({ open, onClose, title, children }) {
         className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${
           visible ? 'opacity-100' : 'opacity-0'
         }`}
-        onClick={onClose}
+        onClick={handleClose}
       />
 
       <div
@@ -47,14 +50,16 @@ function Modal({ open, onClose, title, children }) {
             <h2 id="modal-title" className="text-body-lg font-semibold text-on-surface">
               {title}
             </h2>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Đóng"
-              className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-            >
-              <FontAwesomeIcon icon={faXmark} className="w-4 h-4" />
-            </button>
+            {dismissable && (
+              <button
+                type="button"
+                onClick={handleClose}
+                aria-label="Đóng"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+              >
+                <FontAwesomeIcon icon={faXmark} className="w-4 h-4" />
+              </button>
+            )}
           </div>
         )}
 

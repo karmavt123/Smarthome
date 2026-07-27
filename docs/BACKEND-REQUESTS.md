@@ -36,29 +36,17 @@ Route mount ở `/api`, `requireAuth`, scope theo `req.user.sub` — [rooms.rout
 
 FE giờ nối được: `RoomsPage`, `AddRoomForm.js`, `RoomCard.js`, `RoomTabs.js`, dropdown chọn room trong `AddDeviceForm.js`.
 
-## 3. Face profiles CRUD — chưa có (Bắt buộc cho SecurityPage)
+## 3. ✅ ĐÃ LÀM — Face profiles CRUD
 
-`BACKEND-CHANGELOG.md` chỉ nói simulator tự tạo 1 demo face profile lúc bootstrap. Không có route nào để FE tự quản lý:
+Backend đã build đúng theo đề xuất ở [FACE-ID-PLAN-FRONTEND.md](FACE-ID-PLAN-FRONTEND.md) — chi tiết cách gọi ở [FACE-ID-USAGE.md](FACE-ID-USAGE.md). `GET/POST/DELETE /api/face-profiles` đã nối vào `FaceProfilesCard.js`/`AddFaceProfileForm.js`.
 
-- `GET /api/face-profiles?home_id=` — danh sách hồ sơ khuôn mặt (`FaceProfilesCard.js`).
-- `POST /api/face-profiles` — tạo hồ sơ mới (`AddFaceProfileForm.js` có bước "quét mặt qua camera cửa để hoàn tất đăng ký" — cần làm rõ enrollment flow: FE gửi ảnh/embedding thẳng, hay tạo profile trước rồi thiết bị tự cập nhật `face_embedding` sau khi quét?).
-- `DELETE /api/face-profiles/:id` — xoá hồ sơ.
+## 4. ✅ ĐÃ LÀM — Door passcode (PIN)
 
-## 4. Door passcode (PIN) — chưa có (Bắt buộc cho SecurityPage)
+Backend build khác hướng đề xuất ban đầu (không phải `door_passwords` REST thường mà 2 endpoint riêng): `PUT /api/door-access/:doorDeviceId/pin` (đặt/đổi PIN) + `GET /api/door-access/pin-status?door_device_id=` (check đã có PIN chưa — FE dùng cái này để bắt buộc setup PIN lần đầu trước khi cho dùng Face ID/PIN). Xem [FACE-ID-USAGE.md](FACE-ID-USAGE.md) mục 2.6.
 
-Bảng `door_passwords` đã có trong DB nhưng không route nào được nhắc:
+## 5. ✅ ĐÃ LÀM — Xác thực unlock (PIN/Face)
 
-- `GET /api/door-passwords/:doorDeviceId` — trạng thái passcode hiện tại (active/inactive, không trả hash) cho `PasscodeCard.js`.
-- `POST/PATCH /api/door-passwords/:doorDeviceId` — đặt/đổi PIN (`ChangePasscodeForm.js`) — validate ở BE, hash trước khi lưu, không bao giờ trả plaintext về FE.
-
-## 5. Xác thực unlock (PIN/Face) — cần làm rõ, không chỉ là log (Bắt buộc)
-
-`POST /api/door-access/events` hiện tại **chỉ ghi log**, chặn cứng field `pin`/`password` trong payload — tức là không dùng để xác thực. Nhưng `UnlockPinPad.js`/`UnlockFaceId.js` cần 1 chỗ để thực sự *kiểm tra* PIN/face rồi mới mở cửa. Cần backend trả lời:
-
-- Có API riêng để verify (vd `POST /api/door-access/verify-pin` nhận PIN, backend so hash rồi trả `success/failed`, tự ghi `door_access_logs` luôn, tự tạo `device_actions` mở cửa nếu đúng)?
-- Hay dự định flow này chỉ chạy trên thiết bị (Yolobit) — nhập PIN tại bàn phím vật lý, không qua app — và FE chỉ hiển thị log, không có nút "unlock" thật từ app?
-
-Cần chốt trước khi code `SecurityPage`, vì 2 hướng này khác nhau hoàn toàn về UI (có nút unlock hay chỉ xem lịch sử).
+Backend chọn hướng verify qua app (không phải chỉ hardware): `POST /api/door-access/verify-face` + `POST /api/door-access/verify-pin`, tự ghi `door_access_logs` + tự tạo `device_commands` mở cửa trong cùng request khi thành công. Kèm cơ chế khoá Face ID 5 phút sau 3 lần sai (`GET /api/door-access/face-lock-status`) và tự tạo alert `unauthorized_access`. Chi tiết đầy đủ ở [FACE-ID-USAGE.md](FACE-ID-USAGE.md).
 
 ## 6. Notifications — route đọc/cập nhật (Bắt buộc cho NotificationsPage)
 

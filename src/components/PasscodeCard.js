@@ -1,7 +1,10 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faKey, faPen } from '@fortawesome/free-solid-svg-icons';
 
-function PasscodeCard({ active, onEdit }) {
+// Backend has no "is a PIN currently set" status endpoint (only set-pin and
+// verify-pin) — this card can't truthfully show active/inactive, so it just
+// offers set/change instead of claiming a state it can't verify.
+function PasscodeCard({ onEdit }) {
   return (
     <div className="bg-surface-container rounded-xl border border-outline-variant/30 p-4 flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
@@ -10,15 +13,13 @@ function PasscodeCard({ active, onEdit }) {
         </div>
         <div>
           <p className="text-body-md font-medium text-on-surface">Mật khẩu số</p>
-          <p className="text-label-sm text-outline mt-0.5">
-            Mã PIN 6 số {active ? 'đang hoạt động' : 'đã tắt'}
-          </p>
+          <p className="text-label-sm text-outline mt-0.5">Mã PIN 4-8 số để mở cửa</p>
         </div>
       </div>
       <button
         type="button"
         onClick={onEdit}
-        aria-label="Đổi mã PIN"
+        aria-label="Đặt/đổi mã PIN"
         className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-on-surface shrink-0"
       >
         <FontAwesomeIcon icon={faPen} className="w-3.5 h-3.5" />
