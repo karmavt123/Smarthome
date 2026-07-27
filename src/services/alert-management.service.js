@@ -123,20 +123,27 @@ async function listAlerts(userId, query = {}) {
   });
 }
 
+function parseAlertId(alertId) {
+  try {
+    return BigInt(alertId);
+  } catch {
+    throw new HttpError(400, 'Invalid alert id');
+  }
+}
+
+async function getAlert(userId, alertId) {
+  const alert = await prisma.alerts.findFirst({
+    where: { id: parseAlertId(alertId), homes: { user_id: Number(userId) } },
+  });
+  if (!alert) throw new HttpError(404, 'Alert not found');
+  return alert;
+}
+
 async function updateAlert(userId, alertId, status) {
   if (!['unread', 'read', 'resolved'].includes(status)) {
     throw new HttpError(400, 'status must be unread, read, or resolved');
   }
-  let id;
-  try {
-    id = BigInt(alertId);
-  } catch {
-    throw new HttpError(400, 'Invalid alert id');
-  }
-  const alert = await prisma.alerts.findFirst({
-    where: { id, homes: { user_id: Number(userId) } },
-  });
-  if (!alert) throw new HttpError(404, 'Alert not found');
+  const alert = await getAlert(userId, alertId);
   return prisma.alerts.update({
     where: { id: alert.id },
     data: { status, updated_at: new Date() },
@@ -151,5 +158,6 @@ module.exports = {
   updateAlertRule,
   deleteAlertRule,
   listAlerts,
+  getAlert,
   updateAlert,
 };

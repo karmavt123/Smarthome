@@ -22,8 +22,20 @@ async function alertsIndex(req, res) {
   res.json(serialize(await alertService.listAlerts(req.user.sub, req.query)));
 }
 
+async function alertsShow(req, res) {
+  res.json(serialize(await alertService.getAlert(req.user.sub, req.params.id)));
+}
+
 async function alertsUpdate(req, res) {
   res.json(serialize(await alertService.updateAlert(req.user.sub, req.params.id, req.body.status)));
 }
 
-module.exports = { rulesIndex, rulesCreate, rulesUpdate, rulesDestroy, alertsIndex, alertsUpdate };
+module.exports = {
+  rulesIndex,
+  rulesCreate,
+  rulesUpdate,
+  rulesDestroy,
+  alertsIndex,
+  alertsShow,
+  alertsUpdate,
+};

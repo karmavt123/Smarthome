@@ -1,9 +1,11 @@
 require('dotenv').config();
 
 const path = require('path');
+const querystring = require('querystring');
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+const humps = require('humps');
 const swaggerUi = require('swagger-ui-express');
 
 const swaggerSpec = require('./config/swagger');
@@ -24,6 +26,12 @@ const faceProfilesRoutes = require('./routes/face-profiles.routes');
 const errorHandler = require('./middlewares/error.middleware');
 
 const app = express();
+
+// Decamelize query-string keys (homeId -> home_id) at parse time. Express 5's
+// req.query is a read-only getter re-derived from req.url on every access, so
+// mutating/reassigning it later (as case.middleware.js does for req.body) is a
+// silent no-op — this has to happen via the query-parser hook instead.
+app.set('query parser', (str) => humps.decamelizeKeys(querystring.parse(str)));
 
 app.use(cors());
 app.use(morgan('dev'));

@@ -131,15 +131,82 @@ Lỗi:
 - `400` — thiếu `doorDeviceId`/`image`, hoặc device không phải loại `door`.
 - `422` — ảnh không có khuôn mặt, hoặc có nhiều hơn 1 khuôn mặt (FE nên đã lọc qua liveness check trước khi gửi, nhưng BE vẫn validate lại).
 - `404` — `doorDeviceId` không thuộc về user đang đăng nhập.
+- `423 Locked` — Face ID đang bị khoá cho cửa này do sai quá nhiều lần (xem mục 2.6). Body lỗi có `details.lockedUntil`.
 
 Nếu home chưa có face profile nào active, hoặc không ảnh nào khớp trong ngưỡng `FACE_MATCH_THRESHOLD` → `result: "failed"`.
+
+### 2.5. Cảnh báo khi bị dò mặt nhiều lần
+
+Sai **3 lần trong 2 phút** cho cùng 1 cửa → backend tự tạo:
+- 1 dòng trong `alerts` (`alertType: unauthorized_access`, `severity: critical`).
+- 1 dòng trong `notifications` cho chủ nhà (`channel: in_app`) — lấy qua `GET /api/alerts` / route notification sẵn có, không có API riêng cho tính năng này.
+
+Chỉ tạo **1 alert đang active** cho mỗi cửa — nếu vẫn còn sai tiếp sau khi đã có alert (chưa `resolved`), không tạo thêm alert mới (tránh spam thông báo). Muốn nhận cảnh báo lại cho lần sau, phải đánh dấu alert cũ `resolved` qua `PATCH /api/alerts/:id` trước.
+
+Ngưỡng (3 lần / 2 phút) đang hard-code trong `alert-evaluation.service.js` (`DOOR_FAILURE_THRESHOLD`, `DOOR_FAILURE_WINDOW_MS`), chưa có API để chỉnh qua config/`.env` — muốn đổi phải sửa code.
+
+### 2.6. Khoá Face ID + mở bằng PIN
+
+Sai **3 lần trong 2 phút** cho cùng 1 cửa → Face ID bị khoá **5 phút** cho cửa đó, phải dùng PIN.
+
+**Kiểm tra trạng thái khoá** — `GET /api/door-access/face-lock-status?doorDeviceId=10`:
+```bash
+curl "http://localhost:3000/api/door-access/face-lock-status?doorDeviceId=10" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+```json
+{ "doorDeviceId": 10, "locked": true, "lockedUntil": "2026-07-27T03:10:00.000Z" }
+```
+FE nên gọi cái này trước khi hiển thị nút Face ID (vd lúc mở màn hình unlock, hoặc sau mỗi lần verify-face thất bại) để tự disable nút + hiện message "Face ID đang bị khoá tới `lockedUntil`" thay vì để user bấm rồi mới nhận lỗi `423`.
+
+Trong lúc bị khoá, gọi `POST /api/door-access/verify-face` sẽ trả `423` ngay (không chạy detect ảnh, không tốn ~9s) kèm `details.lockedUntil` — dùng lại giá trị này để hiển thị đếm ngược nếu muốn.
+
+**Check cửa đã có PIN chưa** — `GET /api/door-access/pin-status?doorDeviceId=10`:
+```bash
+curl "http://localhost:3000/api/door-access/pin-status?doorDeviceId=10" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+```json
+{ "doorDeviceId": 10, "hasPin": false }
+```
+Không lộ PIN/hash, chỉ trả có/không. Dùng để FE biết hiện "Đặt PIN" hay "Đổi PIN", hoặc biết trước `verify-pin` có khả thi không mà không cần đoán 1 PIN vô nghĩa để test.
+
+**Đặt/đổi PIN cho cửa** — `PUT /api/door-access/:doorDeviceId/pin` (thường làm 1 lần lúc setup cửa, hoặc khi chủ nhà muốn đổi PIN):
+```bash
+curl -X PUT http://localhost:3000/api/door-access/10/pin \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"pin": "4321"}'
+```
+`pin` phải là chuỗi 4-8 chữ số. Đặt PIN mới sẽ tự vô hiệu hoá PIN cũ (không cần xoá tay). Response `200`, không có field hash.
+
+**Mở cửa bằng PIN** — `POST /api/door-access/verify-pin`:
+```bash
+curl -X POST http://localhost:3000/api/door-access/verify-pin \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"doorDeviceId": 10, "pin": "4321"}'
+```
+Response thành công (`200`):
+```json
+{ "result": "success", "doorAccessLogId": 103, "deviceCommandId": "uuid" }
+```
+Response sai PIN (vẫn `200`, kết quả nghiệp vụ):
+```json
+{ "result": "failed", "doorAccessLogId": 104 }
+```
+Giống `verify-face`: `success` đã tự tạo `device_commands` mở cửa trong cùng request, FE không gọi thêm `/devices/:id/commands`.
+
+Lỗi: `400` nếu cửa chưa có PIN nào được cấu hình (`verify-pin` trước khi gọi `verify-pin` lần nào cũng vậy cho tới khi chủ nhà set qua route ở trên).
+
+**Lưu ý quan trọng**: mở cửa bằng PIN thành công **không** tự mở khoá lại Face ID sớm — Face ID vẫn bị khoá đủ 5 phút kể từ lần sai thứ 3, bất kể cửa có được mở bằng cách khác trong lúc đó hay không. Đây là quyết định thiết kế có chủ đích (khoá Face ID độc lập với việc cửa có mở được hay không), không phải bug.
 
 ## 3. Xem thử qua Swagger UI
 
 ```bash
 npm run dev
 ```
-Mở `http://localhost:3000/api-docs` — cả 4 route đều có block `@openapi`, có thể "Try it out" trực tiếp kể cả upload file (Swagger UI hỗ trợ `multipart/form-data`).
+Mở `http://localhost:3000/api-docs` — tất cả route (face-profiles CRUD, verify-face, face-lock-status, set-pin, verify-pin) đều có block `@openapi`, có thể "Try it out" trực tiếp kể cả upload file (Swagger UI hỗ trợ `multipart/form-data`).
 
 ## 4. Chạy test
 
@@ -162,6 +229,5 @@ Plan doc đã note rõ: `0.6` chỉ là số tham khảo. Trước khi launch:
 
 ## 6. Việc chưa làm (nằm ngoài scope lần build này)
 
-- Rate limit / chống brute-force cho `verify-face` (câu hỏi mở #5 trong plan doc) — chưa có, cân nhắc thêm nếu lo ngại spam ảnh dò khớp.
-- Anti-spoofing mạnh hơn blink detection phía FE (video replay, mặt nạ) — plan doc đã note để sau, chưa build.
+- Anti-spoofing mạnh hơn blink detection phía FE (video replay, mặt nạ) — plan doc đã note để sau, chưa build. Đánh giá thêm: model đề xuất (Silent-Face-Anti-Spoofing) là PyTorch/ONNX, không có bản face-api.js/TFJS tương thích tốt — tốn nhiều công hơn các mục còn lại, cân nhắc kỹ trước khi đầu tư.
 - Object storage cho ảnh enrollment (hiện lưu local disk) — chỉ cần nếu scale ra nhiều instance.

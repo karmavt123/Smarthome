@@ -1,6 +1,8 @@
 const prisma = require('../config/prisma');
 
 const ACTIVE_ALERT_STATUSES = ['unread', 'read'];
+const DOOR_FAILURE_THRESHOLD = 3;
+const DOOR_FAILURE_WINDOW_MS = 2 * 60 * 1000;
 
 function compareValue(value, operator, threshold) {
   const numericValue = Number(value);
@@ -88,4 +90,65 @@ async function evaluateReading(sensor, value) {
   return results;
 }
 
-module.exports = { ACTIVE_ALERT_STATUSES, compareValue, evaluateReading };
+async function evaluateDoorAccessFailures(device, accessMethod) {
+  const since = new Date(Date.now() - DOOR_FAILURE_WINDOW_MS);
+  const recentFailures = await prisma.door_access_logs.count({
+    where: {
+      door_device_id: device.id,
+      access_method: accessMethod,
+      result: 'failed',
+      created_at: { gte: since },
+    },
+  });
+
+  if (recentFailures < DOOR_FAILURE_THRESHOLD) return null;
+
+  const doorTag = `[door:${device.id}]`;
+  const existingActiveAlert = await prisma.alerts.findFirst({
+    where: {
+      home_id: device.home_id,
+      alert_type: 'unauthorized_access',
+      status: { in: ACTIVE_ALERT_STATUSES },
+      message: { contains: doorTag },
+    },
+  });
+  if (existingActiveAlert) return null;
+
+  const title = `Nhiều lần mở cửa thất bại tại "${device.name}"`;
+  const message = `${doorTag} Phát hiện ${recentFailures} lần xác thực ${accessMethod} thất bại liên tiếp trong vòng ${DOOR_FAILURE_WINDOW_MS / 60000} phút tại cửa "${device.name}".`;
+
+  return prisma.$transaction(async (tx) => {
+    const alert = await tx.alerts.create({
+      data: {
+        home_id: device.home_id,
+        alert_type: 'unauthorized_access',
+        severity: 'critical',
+        title,
+        message,
+      },
+    });
+
+    const home = await tx.homes.findUniqueOrThrow({ where: { id: device.home_id } });
+    await tx.notifications.create({
+      data: {
+        user_id: home.user_id,
+        alert_id: alert.id,
+        title,
+        message,
+        channel: 'in_app',
+        status: 'sent',
+      },
+    });
+
+    return alert;
+  });
+}
+
+module.exports = {
+  ACTIVE_ALERT_STATUSES,
+  DOOR_FAILURE_THRESHOLD,
+  DOOR_FAILURE_WINDOW_MS,
+  compareValue,
+  evaluateReading,
+  evaluateDoorAccessFailures,
+};

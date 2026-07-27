@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const prisma = require('../src/config/prisma');
+const alertEvaluationService = require('../src/services/alert-evaluation.service');
 
 const SEED_PREFIX = 'Seed:';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -117,7 +118,10 @@ function alertContent(alertType, severity, homeName) {
 
 function seedAlertsData(homeId, homeName, perSeverity) {
   const severities = ['critical', 'warning', 'info'];
-  const alertTypes = ['environment', 'device_offline', 'unauthorized_access'];
+  // 'unauthorized_access' is deliberately not in this random pool — it's seeded
+  // separately by seedUnauthorizedAccessAlert() using the real detection logic,
+  // so its shape (message tag, linked notification) matches production exactly.
+  const alertTypes = ['environment', 'device_offline'];
   const statuses = ['unread', 'read', 'resolved'];
   const data = [];
 
@@ -141,6 +145,25 @@ function seedAlertsData(homeId, homeName, perSeverity) {
   return data;
 }
 
+// Seeds 3 failed face-unlock attempts clustered inside the 2-minute lockout window,
+// then runs the real evaluateDoorAccessFailures() detection — so the resulting alert
+// + notification are byte-for-byte what production creates (title, message tag,
+// severity, channel), not a hand-rolled approximation that can drift from the code.
+async function seedUnauthorizedAccessAlert(doorDevice) {
+  const now = Date.now();
+  await prisma.door_access_logs.createMany({
+    data: [100, 70, 40].map((secondsAgo) => ({
+      door_device_id: doorDevice.id,
+      access_method: 'face',
+      result: 'failed',
+      failure_reason: 'No matching face profile within threshold',
+      created_at: new Date(now - secondsAgo * 1000),
+    })),
+  });
+
+  await alertEvaluationService.evaluateDoorAccessFailures(doorDevice, 'face');
+}
+
 async function seedHome(userId, { name, address, rooms, alertsPerSeverity }) {
   const home = await prisma.homes.create({
     data: { user_id: userId, name: `${SEED_PREFIX} ${name}`, address },
@@ -152,6 +175,7 @@ async function seedHome(userId, { name, address, rooms, alertsPerSeverity }) {
     roomMap[roomName] = room.id;
   }
 
+  const devicesByCode = {};
   for (const [roomName, roomDevices] of Object.entries(rooms)) {
     for (const dev of roomDevices) {
       const device = await prisma.devices.create({
@@ -165,6 +189,7 @@ async function seedHome(userId, { name, address, rooms, alertsPerSeverity }) {
           connection_status: dev.connection,
         },
       });
+      devicesByCode[dev.code] = device;
 
       await seedDeviceCommands(userId, device);
 
@@ -177,6 +202,9 @@ async function seedHome(userId, { name, address, rooms, alertsPerSeverity }) {
   await prisma.alerts.createMany({
     data: seedAlertsData(home.id, name, alertsPerSeverity),
   });
+
+  const doorDevice = Object.values(devicesByCode).find((d) => d.device_type === 'door');
+  if (doorDevice) await seedUnauthorizedAccessAlert(doorDevice);
 
   return home;
 }

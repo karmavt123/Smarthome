@@ -14,8 +14,7 @@ async function create(req, res) {
 }
 
 async function index(req, res) {
-  const query = humps.decamelizeKeys(req.query || {});
-  const profiles = await faceProfilesService.listFaceProfiles(req.user.sub, query);
+  const profiles = await faceProfilesService.listFaceProfiles(req.user.sub, req.query);
   res.json(serialize(profiles.map((profile) => withAbsoluteImageUrl(req, profile))));
 }
 

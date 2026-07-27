@@ -18,4 +18,24 @@ async function verifyFace(req, res) {
   res.status(200).json(serialize(result));
 }
 
-module.exports = { create, index, verifyFace };
+async function faceLockStatus(req, res) {
+  const result = await doorAccessService.getFaceLockStatusForDoor(req.user.sub, req.query.door_device_id);
+  res.json(serialize(result));
+}
+
+async function pinStatus(req, res) {
+  const result = await doorAccessService.getPinStatusForDoor(req.user.sub, req.query.door_device_id);
+  res.json(serialize(result));
+}
+
+async function setPin(req, res) {
+  const result = await doorAccessService.setDoorPin(req.user.sub, req.params.doorDeviceId, req.body.pin);
+  res.status(200).json(serialize(result));
+}
+
+async function verifyPin(req, res) {
+  const result = await doorAccessService.verifyPin(req.user.sub, req.body.door_device_id, req.body.pin);
+  res.status(200).json(serialize(result));
+}
+
+module.exports = { create, index, verifyFace, faceLockStatus, pinStatus, setPin, verifyPin };
