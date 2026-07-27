@@ -1,6 +1,8 @@
 const prisma = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { requireDevice } = require('./ownership.service');
+const faceRecognitionService = require('./face-recognition.service');
+const deviceCommandService = require('./device-command.service');
 
 const ACCESS_METHODS = ['password', 'face', 'app', 'voice', 'manual'];
 const ACCESS_RESULTS = ['success', 'failed'];
@@ -93,6 +95,57 @@ async function createDoorAccessEvent(userId, payload) {
   });
 }
 
+async function verifyFace(userId, doorDeviceId, imageFile) {
+  if (!doorDeviceId) throw new HttpError(400, 'doorDeviceId is required');
+  if (!imageFile) throw new HttpError(400, 'image file is required');
+
+  const device = await requireDevice(userId, doorDeviceId);
+  if (device.device_type !== 'door') throw new HttpError(400, 'Device is not a door');
+
+  const candidateEmbedding = await faceRecognitionService.computeFaceDescriptor(imageFile.buffer);
+
+  const activeProfiles = await prisma.face_profiles.findMany({
+    where: { home_id: device.home_id, is_active: true },
+  });
+
+  const threshold = faceRecognitionService.matchThreshold();
+  const bestMatch = activeProfiles.length
+    ? faceRecognitionService.findBestMatch(candidateEmbedding, activeProfiles)
+    : null;
+  const isSuccess = !!bestMatch && bestMatch.distance <= threshold;
+
+  const accessLog = await prisma.door_access_logs.create({
+    data: {
+      door_device_id: device.id,
+      user_id: isSuccess ? bestMatch.profile.user_id || Number(userId) : null,
+      face_profile_id: isSuccess ? bestMatch.profile.id : null,
+      access_method: 'face',
+      result: isSuccess ? 'success' : 'failed',
+      confidence_score: bestMatch ? bestMatch.distance : null,
+      failure_reason: isSuccess ? null : 'No matching face profile within threshold',
+    },
+  });
+
+  if (!isSuccess) {
+    return { result: 'failed', confidenceScore: null, doorAccessLogId: accessLog.id };
+  }
+
+  const { action: command } = await deviceCommandService.createDeviceCommand(
+    bestMatch.profile.user_id || Number(userId),
+    device.id,
+    'open',
+    'face'
+  );
+
+  return {
+    result: 'success',
+    confidenceScore: bestMatch.distance,
+    faceProfileId: bestMatch.profile.id,
+    doorAccessLogId: accessLog.id,
+    deviceCommandId: command.id,
+  };
+}
+
 async function listDoorAccessEvents(userId, query = {}) {
   const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
   return prisma.door_access_logs.findMany({
@@ -112,5 +165,6 @@ module.exports = {
   ACCESS_METHODS,
   ACCESS_RESULTS,
   createDoorAccessEvent,
+  verifyFace,
   listDoorAccessEvents,
 };

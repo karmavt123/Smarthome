@@ -1,3 +1,4 @@
+const humps = require('humps');
 const doorAccessService = require('../services/door-access.service');
 const serialize = require('../utils/serialize');
 
@@ -11,4 +12,10 @@ async function index(req, res) {
   res.json(serialize(result));
 }
 
-module.exports = { create, index };
+async function verifyFace(req, res) {
+  const body = humps.decamelizeKeys(req.body || {});
+  const result = await doorAccessService.verifyFace(req.user.sub, body.door_device_id, req.file);
+  res.status(200).json(serialize(result));
+}
+
+module.exports = { create, index, verifyFace };

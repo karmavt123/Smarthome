@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -19,6 +20,7 @@ const simulatorRoutes = require('./routes/simulator.routes');
 const alertsRoutes = require('./routes/alerts.routes');
 const doorAccessRoutes = require('./routes/door-access.routes');
 const voiceCommandsRoutes = require('./routes/voice-commands.routes');
+const faceProfilesRoutes = require('./routes/face-profiles.routes');
 const errorHandler = require('./middlewares/error.middleware');
 
 const app = express();
@@ -26,6 +28,7 @@ const app = express();
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
@@ -43,6 +46,7 @@ app.use('/api', simulatorRoutes);
 app.use('/api', alertsRoutes);
 app.use('/api', doorAccessRoutes);
 app.use('/api', voiceCommandsRoutes);
+app.use('/api', faceProfilesRoutes);
 
 app.use(errorHandler);
 
