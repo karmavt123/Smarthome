@@ -10,7 +10,7 @@ from flask.wrappers import Response
 
 from app.ai.model_loader import models_ready
 from app.middleware.auth import require_api_key
-from app.services.face_recognition_service import euclidean_distance, get_embedding
+from app.services.face_recognition_service import EMBEDDING_DIM, euclidean_distance, get_embedding
 from app.services.liveness_service import compute_liveness
 from app.utils.errors import AppError
 from app.utils.file_utils import decode_image_file
@@ -62,6 +62,18 @@ def _parse_candidates() -> list[dict]:
 
     if not isinstance(candidates, list):
         raise AppError(400, "'candidates' must be a JSON array")
+
+    for candidate in candidates:
+        if not isinstance(candidate, dict) or "id" not in candidate or "embedding" not in candidate:
+            raise AppError(400, "each candidate must have 'id' and 'embedding'", {"candidate": candidate})
+
+        embedding = candidate["embedding"]
+        if not isinstance(embedding, list) or len(embedding) != EMBEDDING_DIM:
+            raise AppError(
+                400,
+                f"candidate embedding must have {EMBEDDING_DIM} dimensions",
+                {"id": candidate.get("id"), "length": len(embedding) if isinstance(embedding, list) else None},
+            )
 
     return candidates
 

@@ -7,6 +7,8 @@ import numpy as np
 from app.ai.model_loader import get_face_app
 from app.utils.errors import MultipleFacesDetectedError, NoFaceDetectedError
 
+EMBEDDING_DIM = 512  # ArcFace (buffalo_l)
+
 
 def detect_single_face(image: np.ndarray):
     """Returns the sole detected face. Raises 422 if face count != 1."""

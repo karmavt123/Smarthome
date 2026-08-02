@@ -2,7 +2,9 @@
 
 Face crop follows the original repo's CropImage algorithm: a square region centered on the
 detected bbox, scaled up by LIVENESS_CROP_SCALE before resizing to the model's 80x80 input.
-Output class order [fake-print, real, fake-replay] matches the upstream training labels.
+Output class order is [fake, real, fake] (index 1 = real) — matches upstream test.py's
+`argmax == 1 -> Real` convention. Input is raw BGR pixels in [0, 255], not rescaled — the
+model's own training pipeline has no /255 normalization step.
 """
 
 from __future__ import annotations
@@ -60,7 +62,7 @@ def _score_frame(image: np.ndarray) -> float | None:
         return None
 
     crop = _crop_for_liveness(image, bboxes[0])
-    blob = crop.astype(np.float32).transpose(2, 0, 1)[np.newaxis, ...] / 255.0
+    blob = crop.astype(np.float32).transpose(2, 0, 1)[np.newaxis, ...]
 
     session = get_liveness_session()
     input_name = session.get_inputs()[0].name

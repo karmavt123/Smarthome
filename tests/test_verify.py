@@ -46,3 +46,18 @@ def test_invalid_candidates_json_is_bad_request(client, api_key):
     )
     assert response.status_code == 400
     assert "candidates" in response.get_json()["message"]
+
+
+def test_wrong_embedding_dimension_is_bad_request(client, api_key):
+    response = client.post(
+        "/api/face-id/verify",
+        headers={"X-API-Key": api_key},
+        data={
+            "images": (io.BytesIO(b"not-a-real-image"), "frame.jpg"),
+            "threshold": "0.6",
+            "candidates": '[{"id": 1, "embedding": [0.1, 0.2]}]',
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 400
+    assert "512" in response.get_json()["message"]
