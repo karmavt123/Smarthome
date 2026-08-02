@@ -1,5 +1,10 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 
+// verify-face now wants a 1-5 frame burst spanning ~1s (liveness check on
+// the backend) instead of a single still frame — see docs/FACE-ID-USAGE.md.
+const BURST_FRAME_COUNT = 5;
+const BURST_FRAME_SPACING_MS = 200; // 5 frames * 200ms ≈ 1s burst window
+
 // Shared getUserMedia + frame-capture primitive for the two Face ID flows
 // (enrollment in AddFaceProfileForm, unlock in UnlockFaceId) — both need the
 // same start/stop/capture-a-jpeg-blob behavior.
@@ -46,9 +51,22 @@ function useCamera() {
     return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
   }, []);
 
+  const captureBurst = useCallback(
+    async (frameCount = BURST_FRAME_COUNT, spacingMs = BURST_FRAME_SPACING_MS) => {
+      const frames = [];
+      for (let i = 0; i < frameCount; i += 1) {
+        const blob = await capture();
+        if (blob) frames.push(blob);
+        if (i < frameCount - 1) await new Promise((resolve) => setTimeout(resolve, spacingMs));
+      }
+      return frames;
+    },
+    [capture]
+  );
+
   useEffect(() => stop, [stop]);
 
-  return { videoRef, isActive, error, start, stop, capture };
+  return { videoRef, isActive, error, start, stop, capture, captureBurst };
 }
 
 export default useCamera;

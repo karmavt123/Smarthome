@@ -10,23 +10,28 @@ function formatTime(isoDate) {
 }
 
 function UnlockFaceId({ doorDeviceId, onSuccess, onCancel, onSwitchToPin }) {
-  const { videoRef, isActive, error: cameraError, start, stop, capture } = useCamera();
+  const { videoRef, isActive, error: cameraError, start, stop, captureBurst } = useCamera();
   const [isCheckingLock, setIsCheckingLock] = useState(true);
   const [lockedUntil, setLockedUntil] = useState(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [message, setMessage] = useState(null);
 
   const handleVerify = useCallback(async () => {
-    const blob = await capture();
-    if (!blob) return;
-
     setIsVerifying(true);
     setMessage(null);
+
+    const frames = await captureBurst();
     stop();
+
+    if (frames.length === 0) {
+      setIsVerifying(false);
+      start();
+      return;
+    }
 
     const formData = new FormData();
     formData.append('doorDeviceId', doorDeviceId);
-    formData.append('image', blob, 'capture.jpg');
+    frames.forEach((blob, i) => formData.append('images', blob, `capture-${i}.jpg`));
 
     try {
       const result = await doorAccessService.verifyFace(formData);
@@ -34,11 +39,19 @@ function UnlockFaceId({ doorDeviceId, onSuccess, onCancel, onSwitchToPin }) {
         onSuccess();
         return;
       }
-      setMessage('Không nhận diện được khuôn mặt. Thử lại hoặc dùng PIN.');
+      setMessage(
+        result.reason === 'liveness_failed'
+          ? 'Không phát hiện người thật, thử lại.'
+          : 'Không nhận diện được khuôn mặt. Thử lại hoặc dùng PIN.'
+      );
       start();
     } catch (err) {
       if (err?.status === 423) {
         setLockedUntil(err.details?.lockedUntil || null);
+      } else if (err?.status === 503 && err.details?.faceIdUnavailable) {
+        // ai-service down — skip generic error, drop straight to PIN, doesn't
+        // count toward the 3-strikes lock (backend never saw a real attempt).
+        onSwitchToPin?.();
       } else {
         setMessage(err?.message || 'Không thể xác thực, thử lại sau.');
         start();
@@ -46,7 +59,7 @@ function UnlockFaceId({ doorDeviceId, onSuccess, onCancel, onSwitchToPin }) {
     } finally {
       setIsVerifying(false);
     }
-  }, [capture, stop, start, doorDeviceId, onSuccess]);
+  }, [captureBurst, stop, start, doorDeviceId, onSuccess, onSwitchToPin]);
 
   const {
     canvasRef,
