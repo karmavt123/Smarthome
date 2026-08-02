@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 
 const TONE_CLASSNAMES = {
   error: 'bg-error/15 text-error',
@@ -7,7 +8,7 @@ const TONE_CLASSNAMES = {
   tertiary: 'bg-tertiary/15 text-tertiary',
 };
 
-function SecurityAlertsCard({ alerts }) {
+function SecurityAlertsCard({ alerts, page = 1, totalPages = 1, onPrevPage, onNextPage }) {
   return (
     <div className="bg-surface-container rounded-xl border border-outline-variant/30 p-4">
       <div className="flex items-center justify-between mb-3">
@@ -18,6 +19,7 @@ function SecurityAlertsCard({ alerts }) {
       </div>
 
       <div className="flex flex-col gap-4">
+        {alerts.length === 0 && <p className="text-body-md text-outline">Không có cảnh báo nào.</p>}
         {alerts.map(({ id, icon, tone, title, meta }) => (
           <div key={id} className="flex items-start gap-3">
             <div
@@ -32,6 +34,30 @@ function SecurityAlertsCard({ alerts }) {
           </div>
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 pt-3 border-t border-outline-variant/30">
+          <button
+            type="button"
+            onClick={onPrevPage}
+            disabled={page <= 1}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-outline hover:text-on-surface disabled:opacity-30 disabled:hover:text-outline"
+          >
+            <FontAwesomeIcon icon={faChevronLeft} className="w-3 h-3" />
+          </button>
+          <span className="text-label-sm text-outline">
+            Trang {page}/{totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={onNextPage}
+            disabled={page >= totalPages}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-outline hover:text-on-surface disabled:opacity-30 disabled:hover:text-outline"
+          >
+            <FontAwesomeIcon icon={faChevronRight} className="w-3 h-3" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

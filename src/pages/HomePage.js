@@ -19,6 +19,7 @@ import useRouter from '~/hooks/useRouter';
 import useHome from '~/hooks/useHome';
 import useDeviceCommand from '~/hooks/useDeviceCommand';
 import dashboardService from '~/services/dashboardService';
+import alertService from '~/services/alertService';
 import formatRelativeTime from '~/utils/formatRelativeTime';
 import {
   CONTROLLABLE_TYPES,
@@ -35,6 +36,7 @@ import RoomCard from '~/components/RoomCard';
 import DeviceListCard from '~/components/DeviceListCard';
 
 const REFRESH_INTERVAL_MS = 5000;
+const ALERTS_PAGE_SIZE = 8;
 
 const SENSOR_META = {
   temperature: { icon: faTemperatureHalf, label: 'Nhiệt độ', chartColor: '#4edea3', decimals: 1 },
@@ -76,7 +78,9 @@ function buildStat(sensorType, sensor) {
     label: meta.label,
     value: sensor.value,
     unit: sensorType === 'light' ? ` ${sensor.unit}` : sensor.unit,
-    trend: isStable ? 'Ổn định' : `${diff > 0 ? '+' : ''}${diff.toFixed(meta.decimals)}${sensor.unit}`,
+    trend: isStable
+      ? 'Ổn định'
+      : `${diff > 0 ? '+' : ''}${diff.toFixed(meta.decimals)}${sensor.unit}`,
     trendClassName: isStable ? 'text-outline' : 'text-tertiary',
     chartColor: meta.chartColor,
     chartData: history.map(({ value }) => ({ value })),
@@ -89,20 +93,32 @@ function HomePage() {
   const { toggle, getOptimisticAction, errorFor } = useDeviceCommand();
 
   const [dashboard, setDashboard] = useState(null);
+  const [alerts, setAlerts] = useState([]);
+  const [alertsPage, setAlertsPage] = useState(1);
+  const [alertsTotalPages, setAlertsTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
   const fetchDashboard = useCallback(async () => {
     try {
-      const data = await dashboardService.get(currentHomeId);
+      const [data, alertsRes] = await Promise.all([
+        dashboardService.get(currentHomeId),
+        alertService.listAlerts({
+          home_id: currentHomeId,
+          page: alertsPage,
+          limit: ALERTS_PAGE_SIZE,
+        }),
+      ]);
       setDashboard(data);
+      setAlerts(alertsRes.data);
+      setAlertsTotalPages(alertsRes.meta.totalPages);
       setLoadError(null);
     } catch (err) {
       setLoadError(err?.message || 'Không thể tải dữ liệu, thử lại sau.');
     } finally {
       setIsLoading(false);
     }
-  }, [currentHomeId]);
+  }, [currentHomeId, alertsPage]);
 
   useEffect(() => {
     fetchDashboard();
@@ -135,7 +151,9 @@ function HomePage() {
     .filter(([sensorType]) => SENSOR_META[sensorType])
     .map(([sensorType, sensor]) => buildStat(sensorType, sensor));
 
-  const controllableDevices = dashboard.devices.filter((d) => CONTROLLABLE_TYPES.includes(d.deviceType));
+  const controllableDevices = dashboard.devices.filter((d) =>
+    CONTROLLABLE_TYPES.includes(d.deviceType)
+  );
 
   const roomDeviceCounts = dashboard.devices.reduce((acc, device) => {
     if (!device.room) return acc;
@@ -149,7 +167,7 @@ function HomePage() {
       ? 'Môi trường trong lành, không có cảnh báo nào đang hoạt động.'
       : `${activeAlerts.length} cảnh báo đang hoạt động: ${activeAlerts.map((a) => a.title).join(', ')}`;
 
-  const alertItems = dashboard.alerts.map((alert) => ({
+  const alertItems = alerts.map((alert) => ({
     id: alert.id,
     icon: ALERT_TYPE_ICON[alert.alertType] || faSatelliteDish,
     tone: ALERT_SEVERITY_TONE[alert.severity] || 'secondary',
@@ -218,8 +236,17 @@ function HomePage() {
         </div>
 
         <div className="flex flex-col gap-6">
-          <EnvironmentStatusCard status={dashboard.environmentStatus} description={environmentDescription} />
-          <SecurityAlertsCard alerts={alertItems} />
+          <EnvironmentStatusCard
+            status={dashboard.environmentStatus}
+            description={environmentDescription}
+          />
+          <SecurityAlertsCard
+            alerts={alertItems}
+            page={alertsPage}
+            totalPages={alertsTotalPages}
+            onPrevPage={() => setAlertsPage((p) => Math.max(1, p - 1))}
+            onNextPage={() => setAlertsPage((p) => Math.min(alertsTotalPages, p + 1))}
+          />
         </div>
       </div>
     </div>

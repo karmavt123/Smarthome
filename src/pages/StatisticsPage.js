@@ -100,14 +100,14 @@ function StatisticsPage() {
         })
       );
 
-      const [actions, alerts] = await Promise.all([
+      const [actions, alertsRes] = await Promise.all([
         deviceActionService.list({ home_id: currentHomeId }),
-        alertService.listAlerts({ home_id: currentHomeId }),
+        alertService.listAlerts({ home_id: currentHomeId, limit: 1000 }),
       ]);
 
       setSensorTrend(buildSensorTrend(Object.fromEntries(readingsEntries)));
       setDeviceActivity(buildDeviceActivity(actions));
-      setAlertsSeverity(buildAlertsSeverity(alerts));
+      setAlertsSeverity(buildAlertsSeverity(alertsRes.data));
       setLoadError(null);
     } catch (err) {
       setLoadError(err?.message || 'Không thể tải dữ liệu thống kê.');
