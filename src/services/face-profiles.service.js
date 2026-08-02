@@ -1,7 +1,7 @@
 const prisma = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { requireHome } = require('./ownership.service');
-const { computeFaceDescriptor } = require('./face-recognition.service');
+const { enrollFace } = require('./face-id-client.service');
 const { saveFaceImage, deleteFaceImage } = require('../utils/face-image-storage');
 
 function present(profile) {
@@ -18,7 +18,7 @@ async function createFaceProfile(userId, payload, file) {
 
   await requireHome(userId, homeId);
 
-  const embedding = await computeFaceDescriptor(file.buffer);
+  const embedding = await enrollFace(file.buffer, file.originalname, file.mimetype);
   const relativePath = saveFaceImage(file.buffer, file.mimetype);
 
   const profile = await prisma.face_profiles.create({

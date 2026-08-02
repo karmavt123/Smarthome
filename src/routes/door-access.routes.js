@@ -1,6 +1,6 @@
 const express = require('express');
 const requireAuth = require('../middlewares/auth.middleware');
-const { faceImageUpload } = require('../middlewares/upload.middleware');
+const { faceFramesUpload } = require('../middlewares/upload.middleware');
 const controller = require('../controllers/door-access.controller');
 
 const router = express.Router();
@@ -21,13 +21,13 @@ router.get('/door-access/events', requireAuth, controller.index);
  * @openapi
  * /api/door-access/verify-face:
  *   post:
- *     summary: Verify a face image against enrolled profiles and open the door on match
+ *     summary: Verify a face capture against enrolled profiles and open the door on match
  *     description: >
- *       Computes a face embedding from the uploaded image, compares it against the
- *       active face profiles for the door's home, and — on a match within threshold —
- *       writes the door-access log and queues the door-open device command atomically
- *       in the same request. Callers must not call /devices/{id}/commands separately
- *       after a success response.
+ *       Sends 1-5 consecutive camera frames plus the home's enrolled candidates to the
+ *       ai-service, which runs liveness + face matching and returns isLive/matched. On a
+ *       live match within threshold, writes the door-access log and queues the door-open
+ *       device command atomically in the same request. Callers must not call
+ *       /devices/{id}/commands separately after a success response.
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true
@@ -35,17 +35,22 @@ router.get('/door-access/events', requireAuth, controller.index);
  *         multipart/form-data:
  *           schema:
  *             type: object
- *             required: [doorDeviceId, image]
+ *             required: [doorDeviceId, images]
  *             properties:
  *               doorDeviceId: { type: integer }
- *               image: { type: string, format: binary }
+ *               images:
+ *                 type: array
+ *                 items: { type: string, format: binary }
+ *                 minItems: 1
+ *                 maxItems: 5
  *     responses:
- *       200: { description: Verification result (success or failed) }
+ *       200: { description: Verification result (success, or failed with a liveness_failed/no-match reason) }
  *       400: { description: Missing fields, or device is not a door }
- *       422: { description: No face, or more than one face, detected in the image }
+ *       422: { description: No face, or more than one face, detected in the frame }
  *       423: { description: Face ID temporarily locked out after repeated failures; use PIN instead }
+ *       503: { description: ai-service unreachable or misconfigured — fall back to PIN, not counted toward lockout }
  */
-router.post('/door-access/verify-face', requireAuth, faceImageUpload, controller.verifyFace);
+router.post('/door-access/verify-face', requireAuth, faceFramesUpload, controller.verifyFace);
 
 /**
  * @openapi

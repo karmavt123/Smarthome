@@ -2,14 +2,31 @@ const path = require('path');
 const request = require('supertest');
 const app = require('../src/app');
 const prisma = require('../src/config/prisma');
+const HttpError = require('../src/utils/http-error');
 
-jest.setTimeout(60000); // face-api.js inference runs on a pure-JS CPU backend (~9s/call); the alert test chains several calls
+jest.mock('../src/services/face-id-client.service');
+const faceIdClientService = require('../src/services/face-id-client.service');
 
 const email = `verify-face-test-${Date.now()}@example.com`;
 const password = 'secret123';
 
-const enrolledFaceImage = path.join(__dirname, 'fixtures/face-single-1.jpg');
-const strangerFaceImage = path.join(__dirname, 'fixtures/face-single-2.jpg');
+const frameImage = path.join(__dirname, 'fixtures/face-single-1.jpg');
+
+function fakeEmbedding() {
+  return Array.from({ length: 512 }, (_, i) => i / 512);
+}
+
+function matchResult(profileId, distance = 0.31) {
+  return { isLive: true, livenessScore: 0.95, matched: { id: profileId, distance }, distance };
+}
+
+function noMatchResult(distance = 0.75) {
+  return { isLive: true, livenessScore: 0.92, matched: null, distance };
+}
+
+function livenessFailedResult() {
+  return { isLive: false, livenessScore: 0.12, matched: null, distance: null };
+}
 
 let accessToken;
 let userId;
@@ -45,13 +62,18 @@ beforeAll(async () => {
     },
   });
 
+  faceIdClientService.enrollFace.mockResolvedValueOnce(fakeEmbedding());
   const enroll = await request(app)
     .post('/api/face-profiles')
     .set('Authorization', `Bearer ${accessToken}`)
     .field('homeId', home.id)
     .field('name', 'Enrolled Face')
-    .attach('image', enrolledFaceImage);
+    .attach('image', frameImage);
   faceProfileId = enroll.body.id;
+});
+
+afterEach(() => {
+  jest.resetAllMocks();
 });
 
 afterAll(async () => {
@@ -72,7 +94,7 @@ describe('POST /api/door-access/verify-face', () => {
     const res = await request(app)
       .post('/api/door-access/verify-face')
       .field('doorDeviceId', doorDevice.id)
-      .attach('image', enrolledFaceImage);
+      .attach('images', frameImage);
 
     expect(res.status).toBe(401);
   });
@@ -82,22 +104,39 @@ describe('POST /api/door-access/verify-face', () => {
       .post('/api/door-access/verify-face')
       .set('Authorization', `Bearer ${accessToken}`)
       .field('doorDeviceId', nonDoorDevice.id)
-      .attach('image', enrolledFaceImage);
+      .attach('images', frameImage);
+
+    expect(res.status).toBe(400);
+    expect(faceIdClientService.verifyFace).not.toHaveBeenCalled();
+  });
+
+  test('rejects when no image frame is attached', async () => {
+    const res = await request(app)
+      .post('/api/door-access/verify-face')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .field('doorDeviceId', doorDevice.id);
 
     expect(res.status).toBe(400);
   });
 
   test('matches the enrolled face, logs the access, and queues a door-open command', async () => {
+    faceIdClientService.verifyFace.mockResolvedValueOnce(matchResult(faceProfileId));
+
     const res = await request(app)
       .post('/api/door-access/verify-face')
       .set('Authorization', `Bearer ${accessToken}`)
       .field('doorDeviceId', doorDevice.id)
-      .attach('image', enrolledFaceImage);
+      .attach('images', frameImage)
+      .attach('images', frameImage);
 
     expect(res.status).toBe(200);
     expect(res.body.result).toBe('success');
     expect(res.body.faceProfileId).toBe(faceProfileId);
     expect(res.body.deviceCommandId).toEqual(expect.any(String));
+
+    const [frameBuffers, candidates] = faceIdClientService.verifyFace.mock.calls[0];
+    expect(frameBuffers).toHaveLength(2);
+    expect(candidates).toEqual([{ id: faceProfileId, embedding: fakeEmbedding() }]);
 
     const command = await prisma.device_commands.findUnique({ where: { id: res.body.deviceCommandId } });
     expect(command).not.toBeNull();
@@ -116,25 +155,70 @@ describe('POST /api/door-access/verify-face', () => {
       data: { home_id: home.id, name: 'Placeholder No Photo', is_active: true, face_embedding: null },
     });
 
+    faceIdClientService.verifyFace.mockResolvedValueOnce(matchResult(faceProfileId));
+
     const res = await request(app)
       .post('/api/door-access/verify-face')
       .set('Authorization', `Bearer ${accessToken}`)
       .field('doorDeviceId', doorDevice.id)
-      .attach('image', enrolledFaceImage);
+      .attach('images', frameImage);
 
     expect(res.status).toBe(200);
     expect(res.body.result).toBe('success');
     expect(res.body.faceProfileId).toBe(faceProfileId);
 
+    const [, candidates] = faceIdClientService.verifyFace.mock.calls[0];
+    expect(candidates.some((c) => c.id === placeholder.id)).toBe(false);
+
     await prisma.face_profiles.delete({ where: { id: placeholder.id } });
   });
 
-  test('rejects a stranger face and does not queue a door-open command', async () => {
+  test('reports liveness_failed without writing a log or counting toward lockout', async () => {
+    const logCountBefore = await prisma.door_access_logs.count({ where: { door_device_id: doorDevice.id } });
+    faceIdClientService.verifyFace.mockResolvedValueOnce(livenessFailedResult());
+
     const res = await request(app)
       .post('/api/door-access/verify-face')
       .set('Authorization', `Bearer ${accessToken}`)
       .field('doorDeviceId', doorDevice.id)
-      .attach('image', strangerFaceImage);
+      .attach('images', frameImage);
+
+    expect(res.status).toBe(200);
+    expect(res.body.result).toBe('failed');
+    expect(res.body.reason).toBe('liveness_failed');
+    expect(res.body.doorAccessLogId).toBeUndefined();
+
+    const logCountAfter = await prisma.door_access_logs.count({ where: { door_device_id: doorDevice.id } });
+    expect(logCountAfter).toBe(logCountBefore);
+  });
+
+  test('returns 503 when the ai-service is unreachable, without writing a log', async () => {
+    const logCountBefore = await prisma.door_access_logs.count({ where: { door_device_id: doorDevice.id } });
+    faceIdClientService.verifyFace.mockRejectedValueOnce(
+      new HttpError(503, 'Face ID hiện không khả dụng, dùng mã PIN để mở cửa', { faceIdUnavailable: true })
+    );
+
+    const res = await request(app)
+      .post('/api/door-access/verify-face')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .field('doorDeviceId', doorDevice.id)
+      .attach('images', frameImage);
+
+    expect(res.status).toBe(503);
+    expect(res.body.details.faceIdUnavailable).toBe(true);
+
+    const logCountAfter = await prisma.door_access_logs.count({ where: { door_device_id: doorDevice.id } });
+    expect(logCountAfter).toBe(logCountBefore);
+  });
+
+  test('rejects a stranger face and does not queue a door-open command', async () => {
+    faceIdClientService.verifyFace.mockResolvedValueOnce(noMatchResult());
+
+    const res = await request(app)
+      .post('/api/door-access/verify-face')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .field('doorDeviceId', doorDevice.id)
+      .attach('images', frameImage);
 
     expect(res.status).toBe(200);
     expect(res.body.result).toBe('failed');
@@ -147,18 +231,21 @@ describe('POST /api/door-access/verify-face', () => {
   });
 
   test('raises an unauthorized_access alert + notification after 3 failed attempts in the window, without duplicating it', async () => {
-    // one failed attempt already happened in the previous test; two more reach the 3-in-2-minutes threshold
+    // one failed (no-match) attempt already happened in the previous test; two more reach
+    // the 3-in-2-minutes threshold
+    faceIdClientService.verifyFace.mockResolvedValueOnce(noMatchResult());
     await request(app)
       .post('/api/door-access/verify-face')
       .set('Authorization', `Bearer ${accessToken}`)
       .field('doorDeviceId', doorDevice.id)
-      .attach('image', strangerFaceImage);
+      .attach('images', frameImage);
 
+    faceIdClientService.verifyFace.mockResolvedValueOnce(noMatchResult());
     const thirdAttempt = await request(app)
       .post('/api/door-access/verify-face')
       .set('Authorization', `Bearer ${accessToken}`)
       .field('doorDeviceId', doorDevice.id)
-      .attach('image', strangerFaceImage);
+      .attach('images', frameImage);
     expect(thirdAttempt.body.result).toBe('failed');
 
     const alerts = await prisma.alerts.findMany({
@@ -174,11 +261,12 @@ describe('POST /api/door-access/verify-face', () => {
     expect(notification.channel).toBe('in_app');
 
     // a 4th failure within the same window must not create a second alert
+    faceIdClientService.verifyFace.mockResolvedValueOnce(noMatchResult());
     await request(app)
       .post('/api/door-access/verify-face')
       .set('Authorization', `Bearer ${accessToken}`)
       .field('doorDeviceId', doorDevice.id)
-      .attach('image', strangerFaceImage);
+      .attach('images', frameImage);
 
     const alertsAfterFourthFailure = await prisma.alerts.findMany({
       where: { home_id: home.id, alert_type: 'unauthorized_access' },
@@ -202,7 +290,7 @@ describe('face lockout + PIN fallback', () => {
     expect(new Date(res.body.lockedUntil).getTime()).toBeGreaterThan(Date.now());
   });
 
-  test('verify-face returns 423 while locked, without writing a new log or alert', async () => {
+  test('verify-face returns 423 while locked, without writing a new log or alert, or calling the ai-service', async () => {
     const logCountBefore = await prisma.door_access_logs.count({ where: { door_device_id: doorDevice.id } });
     const alertCountBefore = await prisma.alerts.count({ where: { home_id: home.id } });
 
@@ -210,10 +298,11 @@ describe('face lockout + PIN fallback', () => {
       .post('/api/door-access/verify-face')
       .set('Authorization', `Bearer ${accessToken}`)
       .field('doorDeviceId', doorDevice.id)
-      .attach('image', strangerFaceImage);
+      .attach('images', frameImage);
 
     expect(res.status).toBe(423);
     expect(res.body.details.lockedUntil).toBeTruthy();
+    expect(faceIdClientService.verifyFace).not.toHaveBeenCalled();
 
     const logCountAfter = await prisma.door_access_logs.count({ where: { door_device_id: doorDevice.id } });
     const alertCountAfter = await prisma.alerts.count({ where: { home_id: home.id } });

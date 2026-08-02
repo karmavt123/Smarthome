@@ -1,41 +1,29 @@
 # Face ID — hướng dẫn sử dụng
 
-Backend đã build xong phần API mô tả trong `docs/FACE-ID-PLAN-FRONTEND.md`. Tài liệu này nói cách chạy và gọi các API đó. Đọc `FACE-ID-PLAN-FRONTEND.md` trước nếu cần hiểu lý do thiết kế (vì sao gộp verify+mở cửa, vì sao không trả embedding, v.v.).
+Backend đã build xong phần API mô tả trong `docs/FACE-ID-PLAN-FRONTEND.md`. Tài liệu này nói cách chạy và gọi các API đó. Đọc `FACE-ID-PLAN-FRONTEND.md` trước nếu cần hiểu lý do thiết kế (vì sao gộp verify+mở cửa, vì sao không trả embedding, v.v.). Kiến trúc AI hiện tại (Node gọi sang `ai-service` Python riêng thay vì chạy face-api.js trong process) mô tả ở `docs/AI-SERVICE-FACE-ID-PLAN.md`, `docs/AI-SERVICE-FACE-ID-SPEC.md`, `docs/NODE-INTEGRATION-FOR-FACE-ID.md`.
 
 ## 1. Setup lần đầu
 
-### macOS (dev machine)
-
-`canvas` (dùng để decode ảnh) cần vài thư viện native qua Homebrew:
-
-```bash
-brew install pango librsvg   # cairo, jpeg-turbo, giflib thường đã có sẵn
-```
-
-Sau đó:
+Node không còn chạy model AI trong process — không cần `canvas`, không cần tải weight qua `postinstall`, không cần GPU. Tất cả detection/embedding/liveness nằm ở `ai-service` (repo Python riêng, xem README bên đó để setup/chạy).
 
 ```bash
 nvm use              # Node >= 20, bắt buộc (đã pin .nvmrc)
-npm install          # cài xong sẽ tự chạy postinstall tải model weights (~12.5MB, cần mạng)
+npm install
 ```
 
-Nếu `postinstall` tải model lỗi (mất mạng giữa chừng), chạy lại thủ công:
-
-```bash
-node scripts/download-face-models.js
-```
-
-Model weights nằm ở `weights/face-api/` (gitignored, mỗi máy tự tải). Không cần GPU, không cần Python.
+`ai-service` phải đang chạy và đã load model xong (`GET $AI_SERVICE_URL/api/face-id/health` trả `modelsLoaded: true`) trước khi test các API bên dưới bằng tay — nếu không, mọi lời gọi enroll/verify trả về `503`.
 
 ### Biến môi trường mới
 
 Thêm vào `.env` (đã có sẵn trong `.env.example`):
 
 ```
+AI_SERVICE_URL=http://localhost:5001
+AI_SERVICE_API_KEY=dev-local-face-id-key   # phải trùng AI_SERVICE_API_KEY bên ai-service .env
 FACE_MATCH_THRESHOLD=0.6
 ```
 
-Khoảng cách Euclidean tối đa giữa 2 embedding để coi là cùng 1 người — số càng nhỏ càng khắt khe. `0.6` là mặc định phổ biến của face-api.js, **chưa tune với ảnh thật của project này** — xem mục "Tune threshold" bên dưới.
+`FACE_MATCH_THRESHOLD` — khoảng cách Euclidean tối đa giữa 2 embedding để coi là cùng 1 người (số càng nhỏ càng khắt khe), Node gửi giá trị này sang `ai-service` mỗi lần verify. **Chưa tune với ảnh thật của project này** — xem mục "Tune threshold" bên dưới.
 
 ### Lưu trữ ảnh
 
@@ -101,8 +89,12 @@ curl -X DELETE http://localhost:3000/api/face-profiles/5 \
 curl -X POST http://localhost:3000/api/door-access/verify-face \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -F "doorDeviceId=10" \
-  -F "image=@/path/to/capture.jpg"
+  -F "images=@/path/to/frame1.jpg" \
+  -F "images=@/path/to/frame2.jpg" \
+  -F "images=@/path/to/frame3.jpg"
 ```
+
+`images` là 1-5 frame liên tiếp (field lặp lại, không phải 1 ảnh tĩnh) — gửi nhiều frame là cách chống video-replay đơn giản nhất, `ai-service` chạy liveness check trên cả chuỗi trước khi detect/embedding.
 
 Response thành công (`200`):
 ```json
@@ -127,13 +119,20 @@ Response thất bại (vẫn `200`, đây là kết quả nghiệp vụ hợp l�
 
 Khi `success`: backend đã tự ghi `door_access_logs` **và** tạo `device_commands` (action `open`) trong cùng request — **FE không được gọi thêm `/devices/:id/commands`** sau khi nhận `success`, chỉ cần hiển thị "Đã mở cửa" và để dashboard tự refresh qua polling sẵn có (đúng như thiết kế trong plan doc, mục 4-5).
 
+Response liveness thất bại (giả mạo/video replay, vẫn `200`, **không** tính vào đếm lockout):
+```json
+{ "result": "failed", "reason": "liveness_failed", "livenessScore": 0.12 }
+```
+Không có `doorAccessLogId` — case này không ghi `door_access_logs` (không phải 1 lần thử match thật).
+
 Lỗi:
-- `400` — thiếu `doorDeviceId`/`image`, hoặc device không phải loại `door`.
-- `422` — ảnh không có khuôn mặt, hoặc có nhiều hơn 1 khuôn mặt (FE nên đã lọc qua liveness check trước khi gửi, nhưng BE vẫn validate lại).
+- `400` — thiếu `doorDeviceId`/`images`, hoặc device không phải loại `door`.
+- `422` — 1 frame không có khuôn mặt, hoặc có nhiều hơn 1 khuôn mặt.
 - `404` — `doorDeviceId` không thuộc về user đang đăng nhập.
 - `423 Locked` — Face ID đang bị khoá cho cửa này do sai quá nhiều lần (xem mục 2.6). Body lỗi có `details.lockedUntil`.
+- `503` — `ai-service` không phản hồi được (down/timeout/sai cấu hình `AI_SERVICE_API_KEY`). Body lỗi có `details.faceIdUnavailable: true` — FE nên tự chuyển qua PIN, **không** tính vào đếm lockout.
 
-Nếu home chưa có face profile nào active, hoặc không ảnh nào khớp trong ngưỡng `FACE_MATCH_THRESHOLD` → `result: "failed"`.
+Nếu home chưa có face profile nào active, hoặc không ảnh nào khớp trong ngưỡng `FACE_MATCH_THRESHOLD` → `result: "failed"` (không có `reason`, có `doorAccessLogId`, **có** tính vào đếm lockout — khác case `liveness_failed`).
 
 ### 2.5. Cảnh báo khi bị dò mặt nhiều lần
 
@@ -159,7 +158,7 @@ curl "http://localhost:3000/api/door-access/face-lock-status?doorDeviceId=10" \
 ```
 FE nên gọi cái này trước khi hiển thị nút Face ID (vd lúc mở màn hình unlock, hoặc sau mỗi lần verify-face thất bại) để tự disable nút + hiện message "Face ID đang bị khoá tới `lockedUntil`" thay vì để user bấm rồi mới nhận lỗi `423`.
 
-Trong lúc bị khoá, gọi `POST /api/door-access/verify-face` sẽ trả `423` ngay (không chạy detect ảnh, không tốn ~9s) kèm `details.lockedUntil` — dùng lại giá trị này để hiển thị đếm ngược nếu muốn.
+Trong lúc bị khoá, gọi `POST /api/door-access/verify-face` sẽ trả `423` ngay (không gọi sang `ai-service`, không tốn round-trip mạng) kèm `details.lockedUntil` — dùng lại giá trị này để hiển thị đếm ngược nếu muốn.
 
 **Check cửa đã có PIN chưa** — `GET /api/door-access/pin-status?doorDeviceId=10`:
 ```bash
@@ -214,9 +213,9 @@ Mở `http://localhost:3000/api-docs` — tất cả route (face-profiles CRUD, 
 npm test
 ```
 
-Chạy toàn bộ suite, gồm `tests/face-profiles.test.js` và `tests/door-access-verify-face.test.js` (dùng ảnh fixture thật trong `tests/fixtures/`, cần DB dev đang chạy — xem `CLAUDE.md`).
+Chạy toàn bộ suite, gồm `tests/face-profiles.test.js` và `tests/door-access-verify-face.test.js` (cần DB dev đang chạy — xem `CLAUDE.md`).
 
-Lưu ý: **lần đầu tiên trong 1 process** gọi detect ảnh sẽ chậm hơn (load model từ disk + chạy trên CPU backend thuần JS, không phải native — xem lý do trong `CLAUDE.md` mục Face ID, phần `@tensorflow/tfjs-node` không dùng được). Ước lượng ~8-10 giây/ảnh khi chạy test lần đầu trong process, các request tiếp theo trong cùng process nhanh hơn không đáng kể vì bottleneck là chính bước detect, không phải load model. Trong production, cứ mỗi lần restart server sẽ có độ trễ tương tự cho request đầu tiên.
+Lưu ý: hai file test này `jest.mock('../src/services/face-id-client.service')` — **không** gọi `ai-service` thật, không cần service Python chạy để `npm test` pass. Mỗi test tự set `mockResolvedValueOnce`/`mockRejectedValueOnce` để giả lập kết quả AI (match, no-match, liveness fail, service down, v.v.) và chỉ kiểm tra phần logic nghiệp vụ ở Node (ghi log, lockout, alert). Muốn test thật với `ai-service` chạy thật, phải test thủ công qua curl/Swagger UI (mục 2-3), không phải qua `npm test`.
 
 ## 5. Tune threshold trước khi FE dùng thật
 
@@ -229,5 +228,6 @@ Plan doc đã note rõ: `0.6` chỉ là số tham khảo. Trước khi launch:
 
 ## 6. Việc chưa làm (nằm ngoài scope lần build này)
 
-- Anti-spoofing mạnh hơn blink detection phía FE (video replay, mặt nạ) — plan doc đã note để sau, chưa build. Đánh giá thêm: model đề xuất (Silent-Face-Anti-Spoofing) là PyTorch/ONNX, không có bản face-api.js/TFJS tương thích tốt — tốn nhiều công hơn các mục còn lại, cân nhắc kỹ trước khi đầu tư.
+- Moiré pattern / motion-consistency check giữa các frame (chống replay mạnh hơn nữa) — `docs/AI-SERVICE-FACE-ID-PLAN.md` có note, không bắt buộc ở bản đầu của `ai-service`.
+- Batch re-enroll tự động — không có, user tự enroll lại thủ công từng người (xem quyết định #4 trong `docs/AI-SERVICE-FACE-ID-SPEC.md`).
 - Object storage cho ảnh enrollment (hiện lưu local disk) — chỉ cần nếu scale ra nhiều instance.

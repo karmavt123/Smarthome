@@ -1,23 +1,19 @@
 const path = require('path');
-const { createCanvas } = require('canvas');
 const request = require('supertest');
 const app = require('../src/app');
 const prisma = require('../src/config/prisma');
+const HttpError = require('../src/utils/http-error');
 
-jest.setTimeout(30000); // first request lazy-loads face-api.js models from disk
+jest.mock('../src/services/face-id-client.service');
+const faceIdClientService = require('../src/services/face-id-client.service');
 
 const email = `face-profiles-test-${Date.now()}@example.com`;
 const password = 'secret123';
 
 const singleFaceImage = path.join(__dirname, 'fixtures/face-single-1.jpg');
-const multiFaceImage = path.join(__dirname, 'fixtures/face-multi.jpg');
 
-function noFaceImageBuffer() {
-  const canvas = createCanvas(200, 200);
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#336699';
-  ctx.fillRect(0, 0, 200, 200);
-  return canvas.toBuffer('image/jpeg');
+function fakeEmbedding() {
+  return Array.from({ length: 512 }, (_, i) => i / 512);
 }
 
 let accessToken;
@@ -34,6 +30,10 @@ beforeAll(async () => {
   home = await prisma.homes.create({ data: { name: 'Test Home', user_id: userId } });
 });
 
+afterEach(() => {
+  jest.resetAllMocks();
+});
+
 afterAll(async () => {
   await prisma.face_profiles.deleteMany({ where: { home_id: home.id } });
   await prisma.homes.delete({ where: { id: home.id } });
@@ -47,31 +47,57 @@ describe('face-profiles routes', () => {
     expect(res.status).toBe(401);
   });
 
-  test('rejects enrollment when no face is detected in the image', async () => {
+  test('rejects enrollment when the ai-service reports no face detected', async () => {
+    faceIdClientService.enrollFace.mockRejectedValueOnce(
+      new HttpError(422, 'Không phát hiện khuôn mặt trong ảnh, chụp lại')
+    );
+
     const res = await request(app)
       .post('/api/face-profiles')
       .set('Authorization', `Bearer ${accessToken}`)
       .field('homeId', home.id)
       .field('name', 'No Face')
-      .attach('image', noFaceImageBuffer(), 'no-face.jpg');
+      .attach('image', singleFaceImage);
 
     expect(res.status).toBe(422);
   });
 
-  test('rejects enrollment when more than one face is detected', async () => {
+  test('rejects enrollment when the ai-service reports more than one face', async () => {
+    faceIdClientService.enrollFace.mockRejectedValueOnce(
+      new HttpError(422, 'Ảnh có nhiều hơn 1 khuôn mặt, chụp lại')
+    );
+
     const res = await request(app)
       .post('/api/face-profiles')
       .set('Authorization', `Bearer ${accessToken}`)
       .field('homeId', home.id)
       .field('name', 'Too Many Faces')
-      .attach('image', multiFaceImage);
+      .attach('image', singleFaceImage);
 
     expect(res.status).toBe(422);
   });
 
+  test('returns 503 when the ai-service is unreachable', async () => {
+    faceIdClientService.enrollFace.mockRejectedValueOnce(
+      new HttpError(503, 'Face ID hiện không khả dụng, dùng mã PIN để mở cửa', { faceIdUnavailable: true })
+    );
+
+    const res = await request(app)
+      .post('/api/face-profiles')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .field('homeId', home.id)
+      .field('name', 'Service Down')
+      .attach('image', singleFaceImage);
+
+    expect(res.status).toBe(503);
+    expect(res.body.details.faceIdUnavailable).toBe(true);
+  });
+
   let profileId;
 
-  test('enrolls a face profile from a single-face image', async () => {
+  test('enrolls a face profile using the embedding returned by the ai-service', async () => {
+    faceIdClientService.enrollFace.mockResolvedValueOnce(fakeEmbedding());
+
     const res = await request(app)
       .post('/api/face-profiles')
       .set('Authorization', `Bearer ${accessToken}`)
@@ -85,6 +111,7 @@ describe('face-profiles routes', () => {
     expect(res.body.isActive).toBe(true);
     expect(res.body.imageUrl).toEqual(expect.stringContaining('/uploads/faces/'));
     expect(res.body.faceEmbedding).toBeUndefined();
+    expect(faceIdClientService.enrollFace).toHaveBeenCalledTimes(1);
     profileId = res.body.id;
   });
 

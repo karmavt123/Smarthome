@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 const prisma = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { requireDevice } = require('./ownership.service');
-const faceRecognitionService = require('./face-recognition.service');
+const faceIdClientService = require('./face-id-client.service');
 const deviceCommandService = require('./device-command.service');
 const alertEvaluationService = require('./alert-evaluation.service');
 
@@ -105,7 +105,7 @@ async function createDoorAccessEvent(userId, payload) {
 async function faceLockStatus(doorDeviceId) {
   const lastSuccess = await prisma.door_access_logs.findFirst({
     where: { door_device_id: doorDeviceId, access_method: 'face', result: 'success' },
-    orderBy: { created_at: 'desc' },
+    orderBy: { id: 'desc' },
   });
 
   const recentFailures = await prisma.door_access_logs.findMany({
@@ -113,9 +113,13 @@ async function faceLockStatus(doorDeviceId) {
       door_device_id: doorDeviceId,
       access_method: 'face',
       result: 'failed',
-      ...(lastSuccess ? { created_at: { gt: lastSuccess.created_at } } : {}),
+      // Compare by id (monotonic), not created_at: the column is DATETIME(0) (second
+      // precision), so a success followed by fast failed attempts within the same second
+      // — routine with a mocked/fast ai-service — would tie on created_at and a `gt`
+      // comparison there would silently drop those failures from the lockout count.
+      ...(lastSuccess ? { id: { gt: lastSuccess.id } } : {}),
     },
-    orderBy: { created_at: 'desc' },
+    orderBy: { id: 'desc' },
     take: FACE_LOCKOUT_THRESHOLD,
   });
 
@@ -146,9 +150,9 @@ async function getFaceLockStatusForDoor(userId, doorDeviceId) {
   return { doorDeviceId: device.id, ...status };
 }
 
-async function verifyFace(userId, doorDeviceId, imageFile) {
+async function verifyFace(userId, doorDeviceId, imageFiles) {
   if (!doorDeviceId) throw new HttpError(400, 'doorDeviceId is required');
-  if (!imageFile) throw new HttpError(400, 'image file is required');
+  if (!imageFiles || imageFiles.length === 0) throw new HttpError(400, 'at least one image frame is required');
 
   const device = await requireDevice(userId, doorDeviceId);
   if (device.device_type !== 'door') throw new HttpError(400, 'Device is not a door');
@@ -162,26 +166,39 @@ async function verifyFace(userId, doorDeviceId, imageFile) {
     );
   }
 
-  const candidateEmbedding = await faceRecognitionService.computeFaceDescriptor(imageFile.buffer);
-
   const activeProfiles = await prisma.face_profiles.findMany({
     where: { home_id: device.home_id, is_active: true, face_embedding: { not: null } },
   });
+  const candidates = activeProfiles.map((profile) => ({
+    id: profile.id,
+    embedding: JSON.parse(profile.face_embedding),
+  }));
 
-  const threshold = faceRecognitionService.matchThreshold();
-  const bestMatch = activeProfiles.length
-    ? faceRecognitionService.findBestMatch(candidateEmbedding, activeProfiles)
+  // Throws HttpError(422, ...) for no-face/multiple-faces, or HttpError(503, ...) if the
+  // ai-service is unreachable/misconfigured — neither case writes a log or counts toward
+  // the lockout (same as the old face-api.js code, which threw before any log was written).
+  const frameBuffers = imageFiles.map((file) => file.buffer);
+  const result = await faceIdClientService.verifyFace(frameBuffers, candidates);
+
+  if (!result.isLive) {
+    // Spoofed/replayed capture — not a real match attempt against a candidate, so it doesn't
+    // count toward the 3-strikes lockout either (see docs/NODE-INTEGRATION-FOR-FACE-ID.md).
+    return { result: 'failed', reason: 'liveness_failed', livenessScore: result.livenessScore };
+  }
+
+  const matchedProfile = result.matched
+    ? activeProfiles.find((profile) => profile.id === result.matched.id)
     : null;
-  const isSuccess = !!bestMatch && bestMatch.distance <= threshold;
+  const isSuccess = !!matchedProfile;
 
   const accessLog = await prisma.door_access_logs.create({
     data: {
       door_device_id: device.id,
-      user_id: isSuccess ? bestMatch.profile.user_id || Number(userId) : null,
-      face_profile_id: isSuccess ? bestMatch.profile.id : null,
+      user_id: isSuccess ? matchedProfile.user_id || Number(userId) : null,
+      face_profile_id: isSuccess ? matchedProfile.id : null,
       access_method: 'face',
       result: isSuccess ? 'success' : 'failed',
-      confidence_score: bestMatch ? bestMatch.distance : null,
+      confidence_score: result.distance ?? null,
       failure_reason: isSuccess ? null : 'No matching face profile within threshold',
     },
   });
@@ -192,7 +209,7 @@ async function verifyFace(userId, doorDeviceId, imageFile) {
   }
 
   const { action: command } = await deviceCommandService.createDeviceCommand(
-    bestMatch.profile.user_id || Number(userId),
+    matchedProfile.user_id || Number(userId),
     device.id,
     'open',
     'face'
@@ -200,8 +217,8 @@ async function verifyFace(userId, doorDeviceId, imageFile) {
 
   return {
     result: 'success',
-    confidenceScore: bestMatch.distance,
-    faceProfileId: bestMatch.profile.id,
+    confidenceScore: result.distance,
+    faceProfileId: matchedProfile.id,
     doorAccessLogId: accessLog.id,
     deviceCommandId: command.id,
   };
