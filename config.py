@@ -1,7 +1,10 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
 
 
 class Config:
@@ -10,3 +13,8 @@ class Config:
 
     UPLOAD_FOLDER: Path = BASE_DIR / os.environ.get("UPLOAD_FOLDER", "storage/uploads")
     MAX_CONTENT_LENGTH: int = int(os.environ.get("MAX_CONTENT_LENGTH", 10 * 1024 * 1024))
+
+    AI_SERVICE_API_KEY: str = os.environ.get("AI_SERVICE_API_KEY", "")
+    MODEL_DIR: Path = BASE_DIR / os.environ.get("MODEL_DIR", "models")
+    LIVENESS_THRESHOLD: float = float(os.environ.get("LIVENESS_THRESHOLD", 0.9))
+    PORT: int = int(os.environ.get("PORT", 5000))
