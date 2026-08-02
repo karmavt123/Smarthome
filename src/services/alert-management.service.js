@@ -112,15 +112,27 @@ async function deleteAlertRule(userId, ruleId) {
 async function listAlerts(userId, query = {}) {
   const home = await resolveHome(userId, query.home_id);
   const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
-  return prisma.alerts.findMany({
-    where: {
-      home_id: home.id,
-      ...(query.status ? { status: query.status } : {}),
-      ...(query.severity ? { severity: query.severity } : {}),
-    },
-    orderBy: { created_at: 'desc' },
-    take: limit,
-  });
+  const page = Math.max(Number(query.page) || 1, 1);
+  const where = {
+    home_id: home.id,
+    ...(query.status ? { status: query.status } : {}),
+    ...(query.severity ? { severity: query.severity } : {}),
+  };
+
+  const [data, total] = await Promise.all([
+    prisma.alerts.findMany({
+      where,
+      orderBy: { created_at: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.alerts.count({ where }),
+  ]);
+
+  return {
+    data,
+    meta: { page, limit, total, total_pages: total === 0 ? 0 : Math.ceil(total / limit) },
+  };
 }
 
 function parseAlertId(alertId) {

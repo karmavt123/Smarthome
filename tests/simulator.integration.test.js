@@ -94,7 +94,7 @@ describe('simulator backend flow', () => {
     expect(duplicate.body.stored).toHaveLength(0);
 
     const alerts = await authenticated('get', '/api/alerts');
-    const highTemperature = alerts.body.find((alert) => alert.title === 'High temperature');
+    const highTemperature = alerts.body.data.find((alert) => alert.title === 'High temperature');
     expect(highTemperature).toBeDefined();
 
     await authenticated('post', '/api/telemetry/readings').send({
@@ -103,7 +103,7 @@ describe('simulator backend flow', () => {
       readings: { temperature: 25, humidity: 55, light: 300 },
     });
     const resolved = await authenticated('get', '/api/alerts');
-    expect(resolved.body.find((alert) => alert.id === highTemperature.id).status).toBe('resolved');
+    expect(resolved.body.data.find((alert) => alert.id === highTemperature.id).status).toBe('resolved');
   });
 
   test('accepts a numeric deviceCode string as a device id', async () => {
