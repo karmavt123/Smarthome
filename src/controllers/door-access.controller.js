@@ -1,6 +1,17 @@
 const humps = require("humps");
 const doorAccessService = require("../services/door-access.service");
 const serialize = require("../utils/serialize");
+const { faceImageUrl } = require("../utils/face-image-storage");
+
+// verify-face writes snapshot_url as a bare uploads/faces/ filename (see
+// door-access.service.js's verifyFace); createDoorAccessEvent's caller-supplied
+// snapshot_url is already a full URL, so only rows coming out of verifyFace need this.
+function withAbsoluteSnapshotUrl(req, log) {
+  return {
+    ...log,
+    snapshot_url: log.snapshot_url ? faceImageUrl(req, log.snapshot_url) : null,
+  };
+}
 
 async function create(req, res) {
   const result = await doorAccessService.createDoorAccessEvent(
@@ -15,7 +26,7 @@ async function index(req, res) {
     req.user.sub,
     req.query,
   );
-  res.json(serialize(result));
+  res.json(serialize(result.map((log) => withAbsoluteSnapshotUrl(req, log))));
 }
 
 async function verifyFace(req, res) {
@@ -53,6 +64,19 @@ async function setPin(req, res) {
   res.status(200).json(serialize(result));
 }
 
+async function faceHistory(req, res) {
+  const result = await doorAccessService.getFaceAccessHistory(
+    req.user.sub,
+    req.query,
+  );
+  res.json(
+    serialize({
+      ...result,
+      data: result.data.map((log) => withAbsoluteSnapshotUrl(req, log)),
+    }),
+  );
+}
+
 async function verifyPin(req, res) {
   const result = await doorAccessService.verifyPin(
     req.user.sub,
@@ -60,6 +84,14 @@ async function verifyPin(req, res) {
     req.body.pin,
   );
   res.status(200).json(serialize(result));
+}
+
+async function pinHistory(req, res) {
+  const result = await doorAccessService.getPinAccessHistory(
+    req.user.sub,
+    req.query,
+  );
+  res.json(serialize(result));
 }
 
 module.exports = {
@@ -70,4 +102,6 @@ module.exports = {
   pinStatus,
   setPin,
   verifyPin,
+  faceHistory,
+  pinHistory,
 };

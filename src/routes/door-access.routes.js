@@ -73,6 +73,34 @@ router.get('/door-access/face-lock-status', requireAuth, controller.faceLockStat
 
 /**
  * @openapi
+ * /api/door-access/face-history:
+ *   get:
+ *     summary: Paginated history of face-id door unlock attempts
+ *     description: >
+ *       Access-log rows where accessMethod is face, newest first. Scoped to the caller's
+ *       own homes/doors. Filter to one door with doorDeviceId, or one outcome with result.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: doorDeviceId
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: result
+ *         schema: { type: string, enum: [success, failed] }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 50, maximum: 200 }
+ *     responses:
+ *       200: { description: Paginated list of face-id access-log rows }
+ *       400: { description: doorDeviceId given but not a door }
+ */
+router.get('/door-access/face-history', requireAuth, controller.faceHistory);
+
+/**
+ * @openapi
  * /api/door-access/pin-status:
  *   get:
  *     summary: Check whether a door has an active PIN configured
@@ -137,5 +165,34 @@ router.put('/door-access/:doorDeviceId/pin', requireAuth, controller.setPin);
  *       400: { description: Missing fields, device is not a door, or no PIN configured }
  */
 router.post('/door-access/verify-pin', requireAuth, controller.verifyPin);
+
+/**
+ * @openapi
+ * /api/door-access/pin-history:
+ *   get:
+ *     summary: Paginated history of PIN door unlock attempts
+ *     description: >
+ *       Access-log rows where accessMethod is password, newest first. Scoped to the
+ *       caller's own homes/doors. Filter to one door with doorDeviceId, or one outcome
+ *       with result.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: doorDeviceId
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: result
+ *         schema: { type: string, enum: [success, failed] }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 50, maximum: 200 }
+ *     responses:
+ *       200: { description: Paginated list of PIN access-log rows }
+ *       400: { description: doorDeviceId given but not a door }
+ */
+router.get('/door-access/pin-history', requireAuth, controller.pinHistory);
 
 module.exports = router;

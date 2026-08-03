@@ -15,6 +15,16 @@ router.use('/devices', requireAuth);
  *     summary: List all devices
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: homeId
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: roomId
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: deviceType
+ *         schema: { type: string, enum: [light, fan, door, sensor] }
  *     responses:
  *       200:
  *         description: List of devices

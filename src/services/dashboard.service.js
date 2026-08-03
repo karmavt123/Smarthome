@@ -70,21 +70,23 @@ async function getDashboard(userId, homeId) {
       : activeAlerts.length
         ? 'warning'
         : 'safe',
-    devices: home.devices.map((rawDevice) => {
-      const device = decorateSimulatorDevice(rawDevice);
-      return {
-        id: device.id,
-        name: device.name,
-        device_code: device.device_code,
-        device_type: device.device_type,
-        status: device.status,
-        connection_status: device.connection_status,
-        last_seen_at: device.last_seen_at,
-        is_simulated: device.is_simulated,
-        simulation_paused: device.simulation_paused,
-        room: device.rooms,
-      };
-    }),
+    devices: home.devices
+      .filter((rawDevice) => rawDevice.device_type !== 'door')
+      .map((rawDevice) => {
+        const device = decorateSimulatorDevice(rawDevice);
+        return {
+          id: device.id,
+          name: device.name,
+          device_code: device.device_code,
+          device_type: device.device_type,
+          status: device.status,
+          connection_status: device.connection_status,
+          last_seen_at: device.last_seen_at,
+          is_simulated: device.is_simulated,
+          simulation_paused: device.simulation_paused,
+          room: device.rooms,
+        };
+      }),
     alerts: home.alerts,
   };
 }

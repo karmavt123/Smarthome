@@ -5,6 +5,7 @@ const { requireDevice } = require("./ownership.service");
 const faceIdClientService = require("./face-id-client.service");
 const deviceCommandService = require("./device-command.service");
 const alertEvaluationService = require("./alert-evaluation.service");
+const { saveFaceImage } = require("../utils/face-image-storage");
 
 const ACCESS_METHODS = ["password", "face", "app", "voice", "manual"];
 const ACCESS_RESULTS = ["success", "failed"];
@@ -79,8 +80,7 @@ async function createDoorAccessEvent(userId, payload) {
     const accessLog = await tx.door_access_logs.create({
       data: {
         door_device_id: device.id,
-        user_id:
-          result === "success" ? faceProfile?.user_id || Number(userId) : null,
+        user_id: Number(userId),
         face_profile_id: faceProfile?.id || null,
         access_method,
         result,
@@ -93,8 +93,7 @@ async function createDoorAccessEvent(userId, payload) {
     const deviceAction = await tx.device_actions.create({
       data: {
         device_id: device.id,
-        user_id:
-          result === "success" ? faceProfile?.user_id || Number(userId) : null,
+        user_id: Number(userId),
         action: "open",
         control_method: access_method,
         execution_status: result,
@@ -222,14 +221,22 @@ async function verifyFace(userId, doorDeviceId, imageFiles) {
     : null;
   const isSuccess = !!matchedProfile;
 
+  // Save the captured frame regardless of match outcome, so a failed attempt can still be
+  // reviewed by photo in the history list (face_profile_id is only ever set on a match).
+  const snapshotFilename = saveFaceImage(
+    imageFiles[0].buffer,
+    imageFiles[0].mimetype,
+  );
+
   const accessLog = await prisma.door_access_logs.create({
     data: {
       door_device_id: device.id,
-      user_id: isSuccess ? matchedProfile.user_id || Number(userId) : null,
+      user_id: Number(userId),
       face_profile_id: isSuccess ? matchedProfile.id : null,
       access_method: "face",
       result: isSuccess ? "success" : "failed",
       confidence_score: result.distance ?? null,
+      snapshot_url: snapshotFilename,
       failure_reason: isSuccess
         ? null
         : "No matching face profile within threshold",
@@ -333,7 +340,7 @@ async function verifyPin(userId, doorDeviceId, pin) {
   const accessLog = await prisma.door_access_logs.create({
     data: {
       door_device_id: device.id,
-      user_id: matches ? Number(userId) : null,
+      user_id: Number(userId),
       access_method: "password",
       result: matches ? "success" : "failed",
       failure_reason: matches ? null : "Incorrect PIN",
@@ -358,6 +365,66 @@ async function verifyPin(userId, doorDeviceId, pin) {
   };
 }
 
+async function getAccessHistory(userId, query = {}, accessMethod) {
+  const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
+  const page = Math.max(Number(query.page) || 1, 1);
+
+  let doorDeviceId;
+  if (query.door_device_id) {
+    const device = await requireDevice(userId, query.door_device_id);
+    if (device.device_type !== "door")
+      throw new HttpError(400, "Device is not a door");
+    doorDeviceId = device.id;
+  }
+
+  const where = {
+    devices: { homes: { user_id: Number(userId) } },
+    access_method: accessMethod,
+    ...(doorDeviceId ? { door_device_id: doorDeviceId } : {}),
+    ...(query.result ? { result: query.result } : {}),
+  };
+
+  const [data, total] = await Promise.all([
+    prisma.door_access_logs.findMany({
+      where,
+      include: {
+        devices: true,
+        face_profiles: {
+          select: {
+            id: true,
+            name: true,
+            image_url: true,
+            is_active: true,
+          },
+        },
+        users: true,
+      },
+      orderBy: { created_at: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.door_access_logs.count({ where }),
+  ]);
+
+  return {
+    data,
+    meta: {
+      page,
+      limit,
+      total,
+      total_pages: total === 0 ? 0 : Math.ceil(total / limit),
+    },
+  };
+}
+
+async function getFaceAccessHistory(userId, query = {}) {
+  return getAccessHistory(userId, query, "face");
+}
+
+async function getPinAccessHistory(userId, query = {}) {
+  return getAccessHistory(userId, query, "password");
+}
+
 async function listDoorAccessEvents(userId, query = {}) {
   const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
   return prisma.door_access_logs.findMany({
@@ -369,7 +436,18 @@ async function listDoorAccessEvents(userId, query = {}) {
       ...(query.result ? { result: query.result } : {}),
       ...(query.access_method ? { access_method: query.access_method } : {}),
     },
-    include: { devices: true, face_profiles: true, users: true },
+    include: {
+      devices: true,
+      face_profiles: {
+        select: {
+          id: true,
+          name: true,
+          image_url: true,
+          is_active: true,
+        },
+      },
+      users: true,
+    },
     orderBy: { created_at: "desc" },
     take: limit,
   });
@@ -385,4 +463,6 @@ module.exports = {
   setDoorPin,
   verifyPin,
   listDoorAccessEvents,
+  getFaceAccessHistory,
+  getPinAccessHistory,
 };

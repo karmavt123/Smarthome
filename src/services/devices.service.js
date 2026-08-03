@@ -1,8 +1,13 @@
 const prisma = require('../config/prisma');
 
-function listDevices(userId) {
+function listDevices(userId, query = {}) {
   return prisma.devices.findMany({
-    where: { homes: { user_id: Number(userId) } },
+    where: {
+      homes: { user_id: Number(userId) },
+      ...(query.home_id ? { home_id: Number(query.home_id) } : {}),
+      ...(query.room_id ? { room_id: Number(query.room_id) } : {}),
+      ...(query.device_type ? { device_type: query.device_type } : {}),
+    },
     include: { rooms: true, sensors: true },
   });
 }

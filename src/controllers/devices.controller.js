@@ -1,7 +1,7 @@
 const devicesService = require('../services/devices.service');
 
 async function index(req, res) {
-  const devices = await devicesService.listDevices(req.user.sub);
+  const devices = await devicesService.listDevices(req.user.sub, req.query);
   res.json(devices);
 }
 
