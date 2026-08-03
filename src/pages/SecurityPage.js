@@ -4,12 +4,14 @@ import { faSpinner } from '@fortawesome/free-solid-svg-icons';
 import useHome from '~/hooks/useHome';
 import useDeviceCommand from '~/hooks/useDeviceCommand';
 import dashboardService from '~/services/dashboardService';
+import deviceService from '~/services/deviceService';
 import faceProfileService from '~/services/faceProfileService';
 import doorAccessService from '~/services/doorAccessService';
 import alertService from '~/services/alertService';
 import { isDeviceOn } from '~/utils/deviceStatus';
 import Modal from '~/components/Modal';
 import SecurityAlertBanner from '~/components/SecurityAlertBanner';
+import DoorAccessHistoryCard from '~/components/DoorAccessHistoryCard';
 import DoorLockCard from '~/components/DoorLockCard';
 import FaceProfilesCard from '~/components/FaceProfilesCard';
 import AddFaceProfileForm from '~/components/AddFaceProfileForm';
@@ -19,14 +21,16 @@ import UnlockPinPad from '~/components/UnlockPinPad';
 import UnlockFaceId from '~/components/UnlockFaceId';
 
 const REFRESH_INTERVAL_MS = 5000;
+const HISTORY_PAGE_SIZE = 10;
 
 function SecurityPage() {
   const { currentHomeId } = useHome();
   const { toggle, getOptimisticAction } = useDeviceCommand();
 
   const [dashboard, setDashboard] = useState(null);
+  const [doorDevice, setDoorDevice] = useState(null);
   const [faceProfiles, setFaceProfiles] = useState([]);
-  const [hasPin, setHasPin] = useState(null); // null = not checked yet
+  const [hasPin, setHasPin] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -41,16 +45,27 @@ function SecurityPage() {
   const [pinPadOpen, setPinPadOpen] = useState(false);
   const [faceIdOpen, setFaceIdOpen] = useState(false);
 
+  const [activeHistoryTab, setActiveHistoryTab] = useState('face');
+  const [faceHistory, setFaceHistory] = useState([]);
+  const [facePage, setFacePage] = useState(1);
+  const [faceTotalPages, setFaceTotalPages] = useState(1);
+  const [pinHistory, setPinHistory] = useState([]);
+  const [pinPage, setPinPage] = useState(1);
+  const [pinTotalPages, setPinTotalPages] = useState(1);
+
   const fetchData = useCallback(async () => {
     try {
-      const [dashboardData, profiles] = await Promise.all([
+      const [dashboardData, profiles, doorsRes] = await Promise.all([
         dashboardService.get(currentHomeId),
         faceProfileService.getAll(currentHomeId),
+        deviceService.getAll({ home_id: currentHomeId, deviceType: 'door' }),
       ]);
       setDashboard(dashboardData);
       setFaceProfiles(profiles);
 
-      const door = dashboardData.devices.find((d) => d.deviceType === 'door');
+      const doors = Array.isArray(doorsRes) ? doorsRes : doorsRes.data;
+      const door = doors[0] || null;
+      setDoorDevice(door);
       if (door) {
         const pinStatus = await doorAccessService.getPinStatus(door.id);
         setHasPin(pinStatus.hasPin);
@@ -75,6 +90,35 @@ function SecurityPage() {
   useEffect(() => {
     if (hasPin === false) setPasscodeModalOpen(true);
   }, [hasPin]);
+
+  const doorDeviceId = doorDevice?.id;
+
+  const fetchHistory = useCallback(
+    async (method) => {
+      if (!doorDeviceId) return;
+      const isFace = method === 'face';
+      const getHistory = isFace ? doorAccessService.getFaceHistory : doorAccessService.getPinHistory;
+      const page = isFace ? facePage : pinPage;
+      try {
+        const res = await getHistory({ doorDeviceId, page, limit: HISTORY_PAGE_SIZE });
+        const totalPages = res.meta.totalPages ?? res.meta.total_pages;
+        if (isFace) {
+          setFaceHistory(res.data);
+          setFaceTotalPages(totalPages);
+        } else {
+          setPinHistory(res.data);
+          setPinTotalPages(totalPages);
+        }
+      } catch {
+        // history is supplementary — leave the previously loaded page on screen
+      }
+    },
+    [doorDeviceId, facePage, pinPage]
+  );
+
+  useEffect(() => {
+    fetchHistory(activeHistoryTab);
+  }, [activeHistoryTab, fetchHistory]);
 
   const handleAddFaceProfile = async ({ name, imageBlob }) => {
     setIsSubmittingProfile(true);
@@ -122,7 +166,13 @@ function SecurityPage() {
     setPinPadOpen(false);
     setFaceIdOpen(false);
     fetchData();
-    setTimeout(fetchData, 1500);
+    fetchHistory('face');
+    fetchHistory('pin');
+    setTimeout(() => {
+      fetchData();
+      fetchHistory('face');
+      fetchHistory('pin');
+    }, 1500);
   };
 
   if (isLoading) {
@@ -141,7 +191,6 @@ function SecurityPage() {
     );
   }
 
-  const doorDevice = dashboard.devices.find((d) => d.deviceType === 'door');
   const optimisticAction = doorDevice ? getOptimisticAction(doorDevice.id) : undefined;
   const isLocked = doorDevice ? !isDeviceOn(doorDevice, optimisticAction) : true;
 
@@ -199,6 +248,24 @@ function SecurityPage() {
         </div>
       </div>
 
+      <DoorAccessHistoryCard
+        activeTab={activeHistoryTab}
+        onTabChange={setActiveHistoryTab}
+        history={activeHistoryTab === 'face' ? faceHistory : pinHistory}
+        page={activeHistoryTab === 'face' ? facePage : pinPage}
+        totalPages={activeHistoryTab === 'face' ? faceTotalPages : pinTotalPages}
+        onPrevPage={() =>
+          activeHistoryTab === 'face'
+            ? setFacePage((p) => Math.max(1, p - 1))
+            : setPinPage((p) => Math.max(1, p - 1))
+        }
+        onNextPage={() =>
+          activeHistoryTab === 'face'
+            ? setFacePage((p) => Math.min(faceTotalPages, p + 1))
+            : setPinPage((p) => Math.min(pinTotalPages, p + 1))
+        }
+      />
+
       <Modal
         open={profileModalOpen}
         onClose={() => setProfileModalOpen(false)}
@@ -220,8 +287,7 @@ function SecurityPage() {
       >
         {hasPin === false && (
           <p className="text-body-md text-outline-variant mb-4">
-            Cửa cần có mã PIN dự phòng trước khi dùng được Face ID/PIN mở khóa — tránh trường hợp Face ID bị
-            khóa 5 phút do sai nhiều lần mà không còn cách nào mở cửa.
+            Cửa cần có mã PIN dự phòng trước khi dùng được Face ID/PIN mở khóa.
           </p>
         )}
         <ChangePasscodeForm

@@ -1,7 +1,7 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Switch from '~/components/Switch';
 
-function QuickControlCard({ icon, label, status, checked, onToggle, disabled, error }) {
+function QuickControlCard({ icon, label, status, checked, onToggle, disabled, error, hideToggle }) {
   return (
     <div className="bg-surface-container rounded-xl border border-outline-variant/30 p-4 flex flex-col gap-3">
       <div className="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center text-secondary">
@@ -14,7 +14,7 @@ function QuickControlCard({ icon, label, status, checked, onToggle, disabled, er
         {error && <p className="text-label-sm text-error mt-0.5">{error}</p>}
       </div>
 
-      <Switch checked={checked} onChange={onToggle} disabled={disabled} />
+      {!hideToggle && <Switch checked={checked} onChange={onToggle} disabled={disabled} />}
     </div>
   );
 }

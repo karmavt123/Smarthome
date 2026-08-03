@@ -1,7 +1,7 @@
 import apiClient from './apiClient';
 
 const deviceService = {
-  getAll: () => apiClient.get('/devices'),
+  getAll: (params) => apiClient.get('/devices', params),
   getById: (id) => apiClient.get(`/devices/${id}`),
   create: (data) => apiClient.post('/devices', data),
   update: (id, data) => apiClient.put(`/devices/${id}`, data),

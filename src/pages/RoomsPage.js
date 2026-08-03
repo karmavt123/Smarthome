@@ -134,10 +134,10 @@ function RoomsPage() {
 
   const turnOffAll = () => {
     controllableRoomDevices.forEach((device) => {
+      // Door is display-only here — unlock/lock lives on /an-ninh.
+      if (device.deviceType === 'door') return;
       if (!isDeviceOn(device, getOptimisticAction(device.id))) return;
-      toggle(device.id, device.deviceType === 'door' ? 'close' : 'turn_off', {
-        onSettled: () => fetchDashboard(),
-      });
+      toggle(device.id, 'turn_off', { onSettled: () => fetchDashboard() });
     });
   };
 
@@ -207,6 +207,7 @@ function RoomsPage() {
                 checked={isDeviceOn(device, optimisticAction)}
                 error={errorFor(device.id)}
                 onToggle={() => handleToggle(device)}
+                hideToggle={device.deviceType === 'door'}
               />
             );
           })}
