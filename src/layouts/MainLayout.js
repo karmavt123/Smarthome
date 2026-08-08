@@ -17,7 +17,9 @@ import {
   faXmark,
   faRightFromBracket,
   faSpinner,
+  faMicrophone,
 } from '@fortawesome/free-solid-svg-icons';
+import VoiceSearchModal from '~/components/VoiceSearchModal';
 
 const NAV_ITEMS = [
   { to: '/tong-quan', label: 'Tổng quan', icon: faTableCellsLarge, matchPaths: ['/'] },
@@ -30,6 +32,7 @@ const NAV_ITEMS = [
 
 function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const router = useRouter();
   const { isAuthenticated, isLoading, logout } = useAuth();
   const { currentHomeId, isLoadingHomes } = useHome();
@@ -140,6 +143,14 @@ function MainLayout() {
           <div className="flex items-center gap-3 shrink-0">
             <button
               type="button"
+              onClick={() => setVoiceModalOpen(true)}
+              aria-label="Tìm kiếm bằng giọng nói"
+              className="w-9 h-9 rounded-full bg-surface-container-low border border-outline-variant/30 flex items-center justify-center text-on-surface-variant hover:text-on-surface"
+            >
+              <FontAwesomeIcon icon={faMicrophone} className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
               className="w-9 h-9 rounded-full bg-surface-container-low border border-outline-variant/30 flex items-center justify-center text-on-surface-variant hover:text-on-surface"
             >
               <FontAwesomeIcon icon={faCircleUser} className="w-4 h-4" />
@@ -151,6 +162,8 @@ function MainLayout() {
           <Outlet />
         </main>
       </div>
+
+      <VoiceSearchModal open={voiceModalOpen} onClose={() => setVoiceModalOpen(false)} />
     </div>
   );
 }

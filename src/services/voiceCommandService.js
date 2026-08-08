@@ -1,7 +1,7 @@
 import apiClient from './apiClient';
 
 const voiceCommandService = {
-  send: (recognizedText) => apiClient.post('/voice-commands', { recognizedText }),
+  send: (text, homeId) => apiClient.post('/voice-commands', { text, homeId }),
 };
 
 export default voiceCommandService;
