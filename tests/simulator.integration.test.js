@@ -52,11 +52,13 @@ describe('simulator backend flow', () => {
 
   test('returns a dashboard with current readings', async () => {
     const response = await authenticated('get', '/api/dashboard');
-
     expect(response.status).toBe(200);
-    expect(response.body.environment.temperature.value).toEqual(expect.any(Number));
-    expect(response.body.environment.humidity.value).toEqual(expect.any(Number));
-    expect(response.body.environment.light.value).toEqual(expect.any(Number));
+
+    const environment = await authenticated('get', '/api/environment');
+    expect(environment.status).toBe(200);
+    expect(environment.body.environment.temperature.value).toEqual(expect.any(Number));
+    expect(environment.body.environment.humidity.value).toEqual(expect.any(Number));
+    expect(environment.body.environment.light.value).toEqual(expect.any(Number));
   });
 
   test('runtime generates bounded readings and heartbeats', async () => {
@@ -72,13 +74,13 @@ describe('simulator backend flow', () => {
     });
     expect(after).toBe(before + 3);
 
-    const dashboard = await authenticated('get', '/api/dashboard');
-    expect(dashboard.body.environment.temperature.value).toBeGreaterThanOrEqual(20);
-    expect(dashboard.body.environment.temperature.value).toBeLessThanOrEqual(35);
-    expect(dashboard.body.environment.humidity.value).toBeGreaterThanOrEqual(35);
-    expect(dashboard.body.environment.humidity.value).toBeLessThanOrEqual(80);
-    expect(dashboard.body.environment.light.value).toBeGreaterThanOrEqual(0);
-    expect(dashboard.body.environment.light.value).toBeLessThanOrEqual(1000);
+    const environment = await authenticated('get', '/api/environment');
+    expect(environment.body.environment.temperature.value).toBeGreaterThanOrEqual(20);
+    expect(environment.body.environment.temperature.value).toBeLessThanOrEqual(35);
+    expect(environment.body.environment.humidity.value).toBeGreaterThanOrEqual(35);
+    expect(environment.body.environment.humidity.value).toBeLessThanOrEqual(80);
+    expect(environment.body.environment.light.value).toBeGreaterThanOrEqual(0);
+    expect(environment.body.environment.light.value).toBeLessThanOrEqual(1000);
   });
 
   test('stores telemetry and creates a threshold alert', async () => {

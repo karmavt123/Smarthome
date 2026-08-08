@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const sseService = require('./sse.service');
 
 const ACTIVE_ALERT_STATUSES = ['unread', 'read'];
 const DOOR_FAILURE_THRESHOLD = 3;
@@ -27,6 +28,19 @@ function compareValue(value, operator, threshold) {
     default:
       throw new Error(`Unsupported alert operator: ${operator}`);
   }
+}
+
+function publishAlert(userId, alert, transition) {
+  sseService.publish(userId, 'alert', {
+    alert_id: alert.id,
+    home_id: alert.home_id,
+    alert_type: alert.alert_type,
+    severity: alert.severity,
+    status: alert.status,
+    title: alert.title,
+    message: alert.message,
+    transition,
+  });
 }
 
 async function evaluateReading(sensor, value) {
@@ -77,12 +91,14 @@ async function evaluateReading(sensor, value) {
         return createdAlert;
       });
 
+      publishAlert(rule.homes.user_id, alert, 'triggered');
       results.push({ ruleId: rule.id, transition: 'triggered', alert });
     } else if (!triggered && activeAlert) {
       const alert = await prisma.alerts.update({
         where: { id: activeAlert.id },
         data: { status: 'resolved', updated_at: new Date() },
       });
+      publishAlert(rule.homes.user_id, alert, 'resolved');
       results.push({ ruleId: rule.id, transition: 'resolved', alert });
     }
   }
@@ -117,7 +133,7 @@ async function evaluateDoorAccessFailures(device, accessMethod) {
   const title = `Nhiều lần mở cửa thất bại tại "${device.name}"`;
   const message = `${doorTag} Phát hiện ${recentFailures} lần xác thực ${accessMethod} thất bại liên tiếp trong vòng ${DOOR_FAILURE_WINDOW_MS / 60000} phút tại cửa "${device.name}".`;
 
-  return prisma.$transaction(async (tx) => {
+  const { alert, home } = await prisma.$transaction(async (tx) => {
     const alert = await tx.alerts.create({
       data: {
         home_id: device.home_id,
@@ -140,8 +156,11 @@ async function evaluateDoorAccessFailures(device, accessMethod) {
       },
     });
 
-    return alert;
+    return { alert, home };
   });
+
+  publishAlert(home.user_id, alert, 'triggered');
+  return alert;
 }
 
 module.exports = {

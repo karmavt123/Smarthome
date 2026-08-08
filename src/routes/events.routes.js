@@ -12,9 +12,16 @@ const router = express.Router();
  *     description: >
  *       EventSource can't set an Authorization header, so the access token may
  *       be passed as ?token= instead of (or in addition to) the Bearer header.
- *       Emits `device_status` events (camelCase payload) shaped as
- *       { deviceId, status, connectionStatus, lastSeenAt } whenever a device's
- *       status changes (command executed, or a successful door-access event).
+ *       Emits (camelCase payloads):
+ *       - `device_status`: { deviceId, status, connectionStatus, lastSeenAt }
+ *         whenever a device's status changes (command executed, or a
+ *         successful door-access event).
+ *       - `sensor_reading`: { deviceId, sensorId, sensorType, value,
+ *         capturedAt } for every new sensor reading stored (real ingest or
+ *         the simulator).
+ *       - `alert`: { alertId, homeId, alertType, severity, status, title,
+ *         message, transition } whenever an alert is triggered or resolved
+ *         (sensor threshold rules, or repeated door-access failures).
  *     parameters:
  *       - in: query
  *         name: token

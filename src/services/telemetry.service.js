@@ -3,6 +3,7 @@ const prisma = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { requireDevice, requireSensor } = require('./ownership.service');
 const { evaluateReading } = require('./alert-evaluation.service');
+const sseService = require('./sse.service');
 
 const MAX_HISTORY_LIMIT = 500;
 const MESSAGE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,100}$/;
@@ -119,6 +120,22 @@ async function storeReadings(device, entries, timestamp = new Date(), requestedM
       reading: readings[index],
       alertTransitions: await evaluateReading(validated[index].sensor, validated[index].value),
     });
+  }
+
+  const home = await prisma.homes.findUnique({
+    where: { id: device.home_id },
+    select: { user_id: true },
+  });
+  if (home) {
+    for (let index = 0; index < validated.length; index += 1) {
+      sseService.publish(home.user_id, 'sensor_reading', {
+        device_id: device.id,
+        sensor_id: validated[index].sensor.id,
+        sensor_type: validated[index].sensor.sensor_type,
+        value: validated[index].value,
+        captured_at: stored[index].reading.captured_at,
+      });
+    }
   }
 
   return { deviceId: device.id, messageId, recordedAt, duplicate: false, stored };
