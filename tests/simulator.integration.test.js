@@ -6,6 +6,10 @@ const {
   sendSimulatedHeartbeats,
   generateSimulatedReadings,
 } = require('../src/simulator/runtime');
+const HttpError = require('../src/utils/http-error');
+
+jest.mock('../src/services/voice-intent-client.service');
+const voiceIntentClientService = require('../src/services/voice-intent-client.service');
 
 const email = `simulator-test-${Date.now()}@example.com`;
 const password = 'secret123';
@@ -185,16 +189,26 @@ describe('simulator backend flow', () => {
   });
 
   test('parses voice text into the normal command lifecycle', async () => {
+    voiceIntentClientService.classifyIntent.mockResolvedValueOnce({
+      deviceType: 'light',
+      action: 'turn_on',
+      confidence: 0.97,
+    });
     const response = await authenticated('post', '/api/voice-commands').send({
-      recognizedText: 'bat den phong khach',
+      text: 'bat den phong khach',
+      homeId: resources.home.id,
     });
 
     expect(response.status).toBe(202);
     expect(response.body.voiceCommand.intent).toBe('turn_on:light');
     expect(response.body.action.executionStatus).toBe('pending');
 
+    voiceIntentClientService.classifyIntent.mockRejectedValueOnce(
+      new HttpError(422, 'Voice command intent not recognized', {})
+    );
     const unknown = await authenticated('post', '/api/voice-commands').send({
-      recognizedText: 'hom nay troi dep',
+      text: 'hom nay troi dep',
+      homeId: resources.home.id,
     });
     expect(unknown.status).toBe(200);
     expect(unknown.body.voiceCommand.executionStatus).toBe('unknown_command');

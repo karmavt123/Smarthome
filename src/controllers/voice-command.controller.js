@@ -4,7 +4,8 @@ const serialize = require('../utils/serialize');
 async function create(req, res) {
   const result = await voiceCommandService.executeVoiceCommand(
     req.user.sub,
-    req.body.recognized_text
+    req.body.text,
+    req.body.home_id
   );
   res.status(result.action ? 202 : 200).json(serialize(result));
 }

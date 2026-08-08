@@ -16,12 +16,14 @@ const router = express.Router();
  *         application/json:
  *           schema:
  *             type: object
- *             required: [recognizedText]
+ *             required: [text, homeId]
  *             properties:
- *               recognizedText: { type: string, example: bat den phong khach }
+ *               text: { type: string, example: bat den phong khach }
+ *               homeId: { type: integer, example: 1 }
  *     responses:
  *       202: { description: Command recognized and queued }
- *       200: { description: Unknown command recorded }
+ *       200: { description: "Unknown command, or a door intent that requires face/PIN verification (response.requiresVerification: true) instead of being queued" }
+ *       503: { description: Voice intent classification (ai-service) unavailable }
  */
 router.post('/voice-commands', requireAuth, controller.create);
 

@@ -405,6 +405,7 @@ enum voice_commands_execution_status {
   success
   failed
   unknown_command
+  requires_verification
 }
 
 enum alerts_status {
