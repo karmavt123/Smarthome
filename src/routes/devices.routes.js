@@ -121,4 +121,42 @@ router.post('/devices/:id/heartbeat', telemetryController.heartbeat);
  */
 router.get('/devices/:id', devicesController.show);
 
+/**
+ * @openapi
+ * /api/devices/{id}:
+ *   patch:
+ *     summary: Rename a device or move it to a different room
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               roomId: { type: integer, nullable: true }
+ *     responses:
+ *       200: { description: Device updated }
+ *       404: { description: Device or room not found }
+ *   delete:
+ *     summary: Delete a device
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       204: { description: Device deleted }
+ *       404: { description: Device not found }
+ *       409: { description: Device still has history and cannot be deleted }
+ */
+router.patch('/devices/:id', devicesController.update);
+router.delete('/devices/:id', devicesController.destroy);
+
 module.exports = router;

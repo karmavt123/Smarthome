@@ -20,8 +20,11 @@ const router = express.Router();
  *         capturedAt } for every new sensor reading stored (real ingest or
  *         the simulator).
  *       - `alert`: { alertId, homeId, alertType, severity, status, title,
- *         message, transition } whenever an alert is triggered or resolved
- *         (sensor threshold rules, or repeated door-access failures).
+ *         message, createdAt, transition } whenever an alert is triggered or
+ *         resolved (sensor threshold rules, or repeated door-access failures).
+ *       - `device_created` / `device_updated` / `device_deleted`: the device
+ *         record itself (deleted only sends { id, homeId}) whenever a device
+ *         is added, renamed/moved, or removed via the /devices endpoints.
  *     parameters:
  *       - in: query
  *         name: token

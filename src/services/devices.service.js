@@ -1,4 +1,7 @@
 const prisma = require('../config/prisma');
+const HttpError = require('../utils/http-error');
+const { requireDevice } = require('./ownership.service');
+const sseService = require('./sse.service');
 
 function listDevices(userId, query = {}) {
   return prisma.devices.findMany({
@@ -30,9 +33,52 @@ async function createDevice(userId, { home_id, room_id, name, device_code, devic
     if (!room) return null;
   }
 
-  return prisma.devices.create({
+  const device = await prisma.devices.create({
     data: { home_id, room_id, name, device_code, device_type },
   });
+
+  sseService.publish(Number(userId), 'device_created', device);
+  return device;
 }
 
-module.exports = { listDevices, getDeviceById, createDevice };
+async function updateDevice(userId, deviceId, { name, room_id } = {}) {
+  const device = await requireDevice(userId, deviceId);
+
+  if (room_id != null) {
+    const room = await prisma.rooms.findFirst({
+      where: { id: Number(room_id), home_id: device.home_id },
+    });
+    if (!room) throw new HttpError(404, 'Room not found');
+  }
+
+  const updated = await prisma.devices.update({
+    where: { id: device.id },
+    data: {
+      ...(name != null ? { name: String(name).trim() } : {}),
+      ...(room_id !== undefined ? { room_id: room_id == null ? null : Number(room_id) } : {}),
+    },
+  });
+
+  sseService.publish(Number(userId), 'device_updated', updated);
+  return updated;
+}
+
+async function deleteDevice(userId, deviceId) {
+  const device = await requireDevice(userId, deviceId);
+
+  try {
+    await prisma.devices.delete({ where: { id: device.id } });
+  } catch (error) {
+    if (error.code === 'P2003') {
+      throw new HttpError(
+        409,
+        'Cannot delete a device that still has history (voice commands, or alert rules on its sensors) — remove those first'
+      );
+    }
+    throw error;
+  }
+
+  sseService.publish(Number(userId), 'device_deleted', { id: device.id, home_id: device.home_id });
+}
+
+module.exports = { listDevices, getDeviceById, createDevice, updateDevice, deleteDevice };

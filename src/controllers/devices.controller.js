@@ -29,4 +29,15 @@ async function create(req, res) {
   res.status(201).json(device);
 }
 
-module.exports = { index, show, create };
+async function update(req, res) {
+  const { name, room_id } = req.body;
+  const device = await devicesService.updateDevice(req.user.sub, req.params.id, { name, room_id });
+  res.json(device);
+}
+
+async function destroy(req, res) {
+  await devicesService.deleteDevice(req.user.sub, req.params.id);
+  res.status(204).send();
+}
+
+module.exports = { index, show, create, update, destroy };

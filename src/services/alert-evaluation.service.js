@@ -39,6 +39,7 @@ function publishAlert(userId, alert, transition) {
     status: alert.status,
     title: alert.title,
     message: alert.message,
+    created_at: alert.created_at,
     transition,
   });
 }

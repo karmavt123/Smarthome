@@ -247,8 +247,8 @@ describe('simulator backend flow', () => {
     ).send({ paused: true });
     await markStaleDevicesOffline(new Date(Date.now() + 2000));
 
-    const offlineDashboard = await authenticated('get', '/api/dashboard');
-    const environment = offlineDashboard.body.devices.find(
+    const devicesList = await authenticated('get', '/api/devices');
+    const environment = devicesList.body.find(
       (device) => device.id === resources.devices.environment.id
     );
     expect(environment.connectionStatus).toBe('offline');
