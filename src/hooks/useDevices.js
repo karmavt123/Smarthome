@@ -36,9 +36,16 @@ function useDevices() {
     [setDevices]
   );
 
+  const removeDevice = useCallback(
+    (id) => {
+      setDevices((prev) => prev.filter((d) => d.id !== id));
+    },
+    [setDevices]
+  );
+
   const getDeviceById = useCallback((id) => devices.find((d) => d.id === id), [devices]);
 
-  return { devices, setDevices, upsertDevice, patchDevice, getDeviceById };
+  return { devices, setDevices, upsertDevice, patchDevice, removeDevice, getDeviceById };
 }
 
 export default useDevices;

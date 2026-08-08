@@ -3,10 +3,10 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSpinner } from '@fortawesome/free-solid-svg-icons';
 import useHome from '~/hooks/useHome';
 import useAlerts from '~/hooks/useAlerts';
-import dashboardService from '~/services/dashboardService';
 import telemetryService from '~/services/telemetryService';
 import deviceActionService from '~/services/deviceActionService';
 import alertService from '~/services/alertService';
+import environmentService from '~/services/environmentService';
 import SensorTrendCard from '~/components/SensorTrendCard';
 import DeviceActivityCard from '~/components/DeviceActivityCard';
 import AlertsSeverityCard from '~/components/AlertsSeverityCard';
@@ -87,7 +87,8 @@ function StatisticsPage() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const dashboard = await dashboardService.get(currentHomeId);
+      const environmentRes = await environmentService.get(currentHomeId);
+      const environmentData = environmentRes.environment;
 
       const now = new Date();
       const from = new Date(now.getTime() - TREND_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -95,7 +96,7 @@ function StatisticsPage() {
 
       const readingsEntries = await Promise.all(
         SENSOR_TYPES.map(async (sensorType) => {
-          const sensorId = dashboard.environment?.[sensorType]?.sensorId;
+          const sensorId = environmentData?.[sensorType]?.sensorId;
           if (!sensorId) return [sensorType, []];
           const { readings } = await telemetryService.getSensorReadings(sensorId, { from, to, limit: 500 });
           return [sensorType, readings];

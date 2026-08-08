@@ -32,11 +32,12 @@ function SettingsPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [rulesList, environmentData] = await Promise.all([
+      const [rulesList, environmentRes] = await Promise.all([
         alertService.listRules({ home_id: currentHomeId }),
         environmentService.get(currentHomeId),
       ]);
 
+      const environmentData = environmentRes.environment;
       setEnvironment(environmentData);
       const options = Object.entries(environmentData)
         .filter(([, sensor]) => sensor?.sensorId)

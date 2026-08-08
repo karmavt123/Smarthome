@@ -22,6 +22,7 @@ import useDevices from '~/hooks/useDevices';
 import useEnvironment from '~/hooks/useEnvironment';
 import useAlerts from '~/hooks/useAlerts';
 import dashboardService from '~/services/dashboardService';
+import deviceService from '~/services/deviceService';
 import alertService from '~/services/alertService';
 import environmentService from '~/services/environmentService';
 import formatRelativeTime from '~/utils/formatRelativeTime';
@@ -104,14 +105,15 @@ function HomePage() {
 
   const fetchDashboard = useCallback(async () => {
     try {
-      const [data, alertsRes, environmentData] = await Promise.all([
+      const [data, devicesRes, alertsRes, environmentRes] = await Promise.all([
         dashboardService.get(currentHomeId),
+        deviceService.getAll({ homeId: currentHomeId }),
         alertService.getAll(currentHomeId, { limit: 1000 }),
         environmentService.get(currentHomeId),
       ]);
       setDashboard(data);
-      setDevices(data.devices);
-      setEnvironment(environmentData);
+      setDevices(devicesRes);
+      setEnvironment(environmentRes.environment);
       setAlerts(alertsRes.data);
       setLoadError(null);
     } catch (err) {
@@ -152,13 +154,11 @@ function HomePage() {
     .filter(([sensorType]) => SENSOR_META[sensorType])
     .map(([sensorType, sensor]) => buildStat(sensorType, sensor));
 
-  const controllableDevices = devices.filter((d) =>
-    CONTROLLABLE_TYPES.includes(d.deviceType)
-  );
+  const controllableDevices = devices.filter((d) => CONTROLLABLE_TYPES.includes(d.deviceType));
 
   const roomDeviceCounts = devices.reduce((acc, device) => {
-    if (!device.room) return acc;
-    acc[device.room.id] = (acc[device.room.id] || 0) + 1;
+    if (!device.rooms) return acc;
+    acc[device.rooms.id] = (acc[device.rooms.id] || 0) + 1;
     return acc;
   }, {});
 
@@ -186,7 +186,7 @@ function HomePage() {
     id: device.id,
     icon: DEVICE_TYPE_ICON[device.deviceType] || faMicrochip,
     name: device.name,
-    room: device.room?.name || 'Chưa gán phòng',
+    room: device.rooms?.name || 'Chưa gán phòng',
     statusLabel: getStatusLabel(device, getOptimisticAction(device.id)),
     online: device.connectionStatus === 'online',
   }));

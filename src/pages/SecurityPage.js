@@ -28,7 +28,7 @@ const HISTORY_PAGE_SIZE = 10;
 function SecurityPage() {
   const { currentHomeId } = useHome();
   const { toggle, getOptimisticAction } = useDeviceCommand();
-  const { setDevices, upsertDevice, getDeviceById } = useDevices();
+  const { setDevices, getDeviceById } = useDevices();
   const { alerts, setAlerts, upsertAlert } = useAlerts();
 
   const [dashboard, setDashboard] = useState(null);
@@ -59,20 +59,18 @@ function SecurityPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [dashboardData, profiles, doorsRes, alertsRes] = await Promise.all([
+      const [dashboardData, profiles, devicesRes, alertsRes] = await Promise.all([
         dashboardService.get(currentHomeId),
         faceProfileService.getAll(currentHomeId),
-        deviceService.getAll({ home_id: currentHomeId, deviceType: 'door' }),
+        deviceService.getAll({ homeId: currentHomeId }),
         alertService.getAll(currentHomeId, { limit: 1000 }),
       ]);
       setDashboard(dashboardData);
       setFaceProfiles(profiles);
 
-      setDevices(dashboardData.devices);
+      setDevices(devicesRes);
       setAlerts(alertsRes.data);
-      const doors = Array.isArray(doorsRes) ? doorsRes : doorsRes.data;
-      const door = doors[0] || null;
-      if (door) upsertDevice(door);
+      const door = devicesRes.find((d) => d.deviceType === 'door') || null;
       setDoorDeviceId(door?.id ?? null);
       if (door) {
         const pinStatus = await doorAccessService.getPinStatus(door.id);
@@ -84,7 +82,7 @@ function SecurityPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentHomeId, setDevices, upsertDevice, setAlerts]);
+  }, [currentHomeId, setDevices, setAlerts]);
 
   useEffect(() => {
     fetchData();

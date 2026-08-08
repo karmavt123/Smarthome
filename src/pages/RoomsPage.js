@@ -27,7 +27,7 @@ const REFRESH_INTERVAL_MS = 5000;
 function getRoomClimate(room, devices) {
   const env = room.environment || {};
   const sensorsOnline = devices.filter(
-    (d) => d.room?.id === room.id && d.deviceType === 'sensor' && d.connectionStatus === 'online'
+    (d) => d.rooms?.id === room.id && d.deviceType === 'sensor' && d.connectionStatus === 'online'
   ).length;
 
   return {
@@ -58,9 +58,12 @@ function RoomsPage() {
 
   const fetchDashboard = useCallback(async () => {
     try {
-      const data = await dashboardService.get(currentHomeId);
+      const [data, devicesRes] = await Promise.all([
+        dashboardService.get(currentHomeId),
+        deviceService.getAll({ homeId: currentHomeId }),
+      ]);
       setDashboard(data);
-      setDevices(data.devices);
+      setDevices(devicesRes);
       setLoadError(null);
     } catch (err) {
       setLoadError(err?.message || 'Không thể tải dữ liệu, thử lại sau.');
@@ -129,7 +132,7 @@ function RoomsPage() {
   const requestedRoomId = Number(router.queryParams.roomId);
   const activeRoomId = rooms.some((room) => room.id === requestedRoomId) ? requestedRoomId : rooms[0]?.id;
   const activeRoom = rooms.find((room) => room.id === activeRoomId);
-  const roomDevices = devices.filter((device) => device.room?.id === activeRoomId);
+  const roomDevices = devices.filter((device) => device.rooms?.id === activeRoomId);
   const controllableRoomDevices = roomDevices.filter((d) => CONTROLLABLE_TYPES.includes(d.deviceType));
   const climate = activeRoom ? getRoomClimate(activeRoom, devices) : { sensorsOnline: 0 };
 
