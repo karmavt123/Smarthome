@@ -8,6 +8,7 @@ import useDeviceStatusStream from '~/hooks/useDeviceStatusStream';
 import {
   faTableCellsLarge,
   faHouse,
+  faHouseChimney,
   faShieldHalved,
   faChartColumn,
   faBell,
@@ -23,6 +24,7 @@ import {
 import VoiceSearchModal from '~/components/VoiceSearchModal';
 
 const NAV_ITEMS = [
+  { to: '/chon-nha', label: 'Chọn nhà', icon: faHouseChimney },
   { to: '/tong-quan', label: 'Tổng quan', icon: faTableCellsLarge, matchPaths: ['/'] },
   { to: '/phong', label: 'Phòng', icon: faHouse },
   { to: '/an-ninh', label: 'An ninh', icon: faShieldHalved },
