@@ -3,8 +3,9 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSpinner } from '@fortawesome/free-solid-svg-icons';
 import useAuth from '~/hooks/useAuth';
 import useHome from '~/hooks/useHome';
-import dashboardService from '~/services/dashboardService';
+import useEnvironment from '~/hooks/useEnvironment';
 import alertService from '~/services/alertService';
+import environmentService from '~/services/environmentService';
 import Modal from '~/components/Modal';
 import AccountInfoCard from '~/components/AccountInfoCard';
 import AlertRulesCard from '~/components/AlertRulesCard';
@@ -16,6 +17,7 @@ const SENSOR_TYPE_LABEL = { temperature: 'Nhiệt độ', humidity: 'Độ ẩm'
 function SettingsPage() {
   const { user } = useAuth();
   const { currentHomeId } = useHome();
+  const { setEnvironment } = useEnvironment();
 
   const [rules, setRules] = useState([]);
   const [sensorOptions, setSensorOptions] = useState([]);
@@ -30,12 +32,13 @@ function SettingsPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [dashboard, rulesList] = await Promise.all([
-        dashboardService.get(currentHomeId),
+      const [rulesList, environmentData] = await Promise.all([
         alertService.listRules({ home_id: currentHomeId }),
+        environmentService.get(currentHomeId),
       ]);
 
-      const options = Object.entries(dashboard.environment)
+      setEnvironment(environmentData);
+      const options = Object.entries(environmentData)
         .filter(([, sensor]) => sensor?.sensorId)
         .map(([sensorType, sensor]) => ({
           sensorType,
@@ -52,7 +55,7 @@ function SettingsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentHomeId]);
+  }, [currentHomeId, setEnvironment]);
 
   useEffect(() => {
     fetchData();

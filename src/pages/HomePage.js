@@ -19,8 +19,11 @@ import useRouter from '~/hooks/useRouter';
 import useHome from '~/hooks/useHome';
 import useDeviceCommand from '~/hooks/useDeviceCommand';
 import useDevices from '~/hooks/useDevices';
+import useEnvironment from '~/hooks/useEnvironment';
+import useAlerts from '~/hooks/useAlerts';
 import dashboardService from '~/services/dashboardService';
 import alertService from '~/services/alertService';
+import environmentService from '~/services/environmentService';
 import formatRelativeTime from '~/utils/formatRelativeTime';
 import {
   CONTROLLABLE_TYPES,
@@ -35,8 +38,6 @@ import SecurityAlertsCard from '~/components/SecurityAlertsCard';
 import QuickControlCard from '~/components/QuickControlCard';
 import RoomCard from '~/components/RoomCard';
 import DeviceListCard from '~/components/DeviceListCard';
-
-const REFRESH_INTERVAL_MS = 5000;
 const ALERTS_PAGE_SIZE = 8;
 
 const SENSOR_META = {
@@ -93,40 +94,37 @@ function HomePage() {
   const { currentHomeId } = useHome();
   const { toggle, getOptimisticAction, errorFor } = useDeviceCommand();
   const { devices, setDevices } = useDevices();
+  const { environment, setEnvironment } = useEnvironment();
+  const { alerts, setAlerts } = useAlerts();
 
   const [dashboard, setDashboard] = useState(null);
-  const [alerts, setAlerts] = useState([]);
   const [alertsPage, setAlertsPage] = useState(1);
-  const [alertsTotalPages, setAlertsTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
   const fetchDashboard = useCallback(async () => {
     try {
-      const [data, alertsRes] = await Promise.all([
+      const [data, alertsRes, environmentData] = await Promise.all([
         dashboardService.get(currentHomeId),
-        alertService.listAlerts({
-          home_id: currentHomeId,
-          page: alertsPage,
-          limit: ALERTS_PAGE_SIZE,
-        }),
+        alertService.getAll(currentHomeId, { limit: 1000 }),
+        environmentService.get(currentHomeId),
       ]);
       setDashboard(data);
       setDevices(data.devices);
+      setEnvironment(environmentData);
       setAlerts(alertsRes.data);
-      setAlertsTotalPages(alertsRes.meta.totalPages);
       setLoadError(null);
     } catch (err) {
       setLoadError(err?.message || 'Không thể tải dữ liệu, thử lại sau.');
     } finally {
       setIsLoading(false);
     }
-  }, [currentHomeId, alertsPage, setDevices]);
+  }, [currentHomeId, setDevices, setEnvironment, setAlerts]);
 
+  // Sensor readings now arrive live via SSE (see useEventsStream) — no need to
+  // poll the whole dashboard just to keep them fresh anymore.
   useEffect(() => {
     fetchDashboard();
-    const interval = setInterval(fetchDashboard, REFRESH_INTERVAL_MS);
-    return () => clearInterval(interval);
   }, [fetchDashboard]);
 
   const handleToggle = (device) => {
@@ -150,7 +148,7 @@ function HomePage() {
     );
   }
 
-  const stats = Object.entries(dashboard.environment)
+  const stats = Object.entries(environment)
     .filter(([sensorType]) => SENSOR_META[sensorType])
     .map(([sensorType, sensor]) => buildStat(sensorType, sensor));
 
@@ -164,13 +162,19 @@ function HomePage() {
     return acc;
   }, {});
 
-  const activeAlerts = dashboard.alerts.filter((a) => a.status !== 'resolved');
+  const activeAlerts = alerts.filter((a) => a.status !== 'resolved');
   const environmentDescription =
     activeAlerts.length === 0
       ? 'Môi trường trong lành, không có cảnh báo nào đang hoạt động.'
       : `${activeAlerts.length} cảnh báo đang hoạt động: ${activeAlerts.map((a) => a.title).join(', ')}`;
 
-  const alertItems = alerts.map((alert) => ({
+  const alertsTotalPages = Math.max(1, Math.ceil(alerts.length / ALERTS_PAGE_SIZE));
+  const pagedAlerts = alerts.slice(
+    (alertsPage - 1) * ALERTS_PAGE_SIZE,
+    alertsPage * ALERTS_PAGE_SIZE
+  );
+
+  const alertItems = pagedAlerts.map((alert) => ({
     id: alert.id,
     icon: ALERT_TYPE_ICON[alert.alertType] || faSatelliteDish,
     tone: ALERT_SEVERITY_TONE[alert.severity] || 'secondary',

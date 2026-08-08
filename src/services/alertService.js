@@ -5,7 +5,7 @@ const alertService = {
   createRule: (data) => apiClient.post('/alert-rules', data),
   updateRule: (id, data) => apiClient.patch(`/alert-rules/${id}`, data),
   deleteRule: (id) => apiClient.delete(`/alert-rules/${id}`),
-  listAlerts: (params) => apiClient.get('/alerts', params),
+  getAll: (homeId, params) => apiClient.get('/alerts', { homeId, ...params }),
   updateAlert: (id, data) => apiClient.patch(`/alerts/${id}`, data),
 };
 

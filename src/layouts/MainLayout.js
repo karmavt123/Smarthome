@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import useRouter from '~/hooks/useRouter';
 import useAuth from '~/hooks/useAuth';
 import useHome from '~/hooks/useHome';
-import useDeviceStatusStream from '~/hooks/useDeviceStatusStream';
+import useEventsStream from '~/hooks/useEventsStream';
 import {
   faTableCellsLarge,
   faHouse,
@@ -24,13 +24,13 @@ import {
 import VoiceSearchModal from '~/components/VoiceSearchModal';
 
 const NAV_ITEMS = [
-  { to: '/chon-nha', label: 'Chọn nhà', icon: faHouseChimney },
   { to: '/tong-quan', label: 'Tổng quan', icon: faTableCellsLarge, matchPaths: ['/'] },
   { to: '/phong', label: 'Phòng', icon: faHouse },
   { to: '/an-ninh', label: 'An ninh', icon: faShieldHalved },
   { to: '/thong-ke', label: 'Thống kê', icon: faChartColumn },
   { to: '/thong-bao', label: 'Thông báo', icon: faBell },
   { to: '/cai-dat', label: 'Cài đặt', icon: faGear },
+  { to: '/chon-nha', label: 'Chọn nhà', icon: faHouseChimney },
 ];
 
 function MainLayout() {
@@ -39,7 +39,7 @@ function MainLayout() {
   const router = useRouter();
   const { isAuthenticated, isLoading, logout } = useAuth();
   const { currentHomeId, isLoadingHomes } = useHome();
-  useDeviceStatusStream(isAuthenticated);
+  useEventsStream(isAuthenticated);
 
   if (isLoading || (isAuthenticated && isLoadingHomes)) {
     return (

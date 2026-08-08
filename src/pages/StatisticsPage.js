@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSpinner } from '@fortawesome/free-solid-svg-icons';
 import useHome from '~/hooks/useHome';
+import useAlerts from '~/hooks/useAlerts';
 import dashboardService from '~/services/dashboardService';
 import telemetryService from '~/services/telemetryService';
 import deviceActionService from '~/services/deviceActionService';
@@ -77,6 +78,7 @@ function buildAlertsSeverity(alerts) {
 
 function StatisticsPage() {
   const { currentHomeId } = useHome();
+  const { setAlerts } = useAlerts();
   const [sensorTrend, setSensorTrend] = useState([]);
   const [deviceActivity, setDeviceActivity] = useState([]);
   const [alertsSeverity, setAlertsSeverity] = useState([]);
@@ -102,11 +104,12 @@ function StatisticsPage() {
 
       const [actions, alertsRes] = await Promise.all([
         deviceActionService.list({ home_id: currentHomeId }),
-        alertService.listAlerts({ home_id: currentHomeId, limit: 1000 }),
+        alertService.getAll(currentHomeId, { limit: 1000 }),
       ]);
 
       setSensorTrend(buildSensorTrend(Object.fromEntries(readingsEntries)));
       setDeviceActivity(buildDeviceActivity(actions));
+      setAlerts(alertsRes.data);
       setAlertsSeverity(buildAlertsSeverity(alertsRes.data));
       setLoadError(null);
     } catch (err) {
@@ -114,7 +117,7 @@ function StatisticsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentHomeId]);
+  }, [currentHomeId, setAlerts]);
 
   useEffect(() => {
     fetchStats();

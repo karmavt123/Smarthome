@@ -4,6 +4,7 @@ import { faSpinner } from '@fortawesome/free-solid-svg-icons';
 import useHome from '~/hooks/useHome';
 import useDeviceCommand from '~/hooks/useDeviceCommand';
 import useDevices from '~/hooks/useDevices';
+import useAlerts from '~/hooks/useAlerts';
 import dashboardService from '~/services/dashboardService';
 import deviceService from '~/services/deviceService';
 import faceProfileService from '~/services/faceProfileService';
@@ -28,6 +29,7 @@ function SecurityPage() {
   const { currentHomeId } = useHome();
   const { toggle, getOptimisticAction } = useDeviceCommand();
   const { setDevices, upsertDevice, getDeviceById } = useDevices();
+  const { alerts, setAlerts, upsertAlert } = useAlerts();
 
   const [dashboard, setDashboard] = useState(null);
   const [doorDeviceId, setDoorDeviceId] = useState(null);
@@ -57,15 +59,17 @@ function SecurityPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [dashboardData, profiles, doorsRes] = await Promise.all([
+      const [dashboardData, profiles, doorsRes, alertsRes] = await Promise.all([
         dashboardService.get(currentHomeId),
         faceProfileService.getAll(currentHomeId),
         deviceService.getAll({ home_id: currentHomeId, deviceType: 'door' }),
+        alertService.getAll(currentHomeId, { limit: 1000 }),
       ]);
       setDashboard(dashboardData);
       setFaceProfiles(profiles);
 
       setDevices(dashboardData.devices);
+      setAlerts(alertsRes.data);
       const doors = Array.isArray(doorsRes) ? doorsRes : doorsRes.data;
       const door = doors[0] || null;
       if (door) upsertDevice(door);
@@ -80,7 +84,7 @@ function SecurityPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentHomeId, setDevices, upsertDevice]);
+  }, [currentHomeId, setDevices, upsertDevice, setAlerts]);
 
   useEffect(() => {
     fetchData();
@@ -198,14 +202,14 @@ function SecurityPage() {
   const optimisticAction = doorDevice ? getOptimisticAction(doorDevice.id) : undefined;
   const isLocked = doorDevice ? !isDeviceOn(doorDevice, optimisticAction) : true;
 
-  const activeIncident = dashboard.alerts.find(
+  const activeIncident = alerts.find(
     (alert) => alert.alertType === 'unauthorized_access' && alert.status !== 'resolved'
   );
 
   const handleResolveIncident = async () => {
     try {
       await alertService.updateAlert(activeIncident.id, { status: 'resolved' });
-      fetchData();
+      upsertAlert({ ...activeIncident, status: 'resolved' });
     } catch {
       // banner just stays until the next refresh confirms either way
     }

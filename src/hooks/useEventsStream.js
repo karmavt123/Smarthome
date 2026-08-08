@@ -1,12 +1,16 @@
 import { useEffect } from 'react';
 import apiClient from '~/services/apiClient';
 import useDevices from '~/hooks/useDevices';
+import useEnvironment from '~/hooks/useEnvironment';
+import useAlerts from '~/hooks/useAlerts';
 
-// Push channel for device status — server sends `device_status` events as
-// devices change instead of the app having to poll for it. Runs once at the
-// authenticated shell (MainLayout) so it stays open across page navigation.
-function useDeviceStatusStream(enabled) {
+// Single SSE connection for realtime push from the backend — `device_status`,
+// `sensor_reading` and `alert` events land on the same stream. Runs once at
+// the authenticated shell (MainLayout) so it stays open across page navigation.
+function useEventsStream(enabled) {
   const { patchDevice } = useDevices();
+  const { patchSensorReading } = useEnvironment();
+  const { upsertAlert } = useAlerts();
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -27,13 +31,26 @@ function useDeviceStatusStream(enabled) {
       });
     });
 
+    source.addEventListener('sensor_reading', (e) => {
+      const data = JSON.parse(e.data);
+      patchSensorReading(data.sensorType, {
+        value: data.value,
+        capturedAt: data.capturedAt,
+      });
+    });
+
+    source.addEventListener('alert', (e) => {
+      const data = JSON.parse(e.data);
+      upsertAlert(data);
+    });
+
     source.onerror = (err) => {
       // EventSource tự reconnect (cùng URL/token) — không tự viết lại logic retry.
       console.warn('SSE lỗi, browser tự reconnect', err);
     };
 
     return () => source.close();
-  }, [enabled, patchDevice]);
+  }, [enabled, patchDevice, patchSensorReading, upsertAlert]);
 }
 
-export default useDeviceStatusStream;
+export default useEventsStream;
