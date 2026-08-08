@@ -14,9 +14,11 @@ def create_app() -> Flask:
 
     from app.routes.health_routes import health_bp
     from app.routes.face_id_routes import face_id_bp
+    from app.routes.voice_routes import voice_bp
 
     app.register_blueprint(health_bp)
     app.register_blueprint(face_id_bp)
+    app.register_blueprint(voice_bp)
 
     from app.utils.errors import AppError
 

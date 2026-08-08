@@ -12,14 +12,16 @@ logger = logging.getLogger(__name__)
 
 _face_app = None
 _liveness_session: Optional[onnxruntime.InferenceSession] = None
+_embedding_model = None
 _loaded = False
 
 LIVENESS_MODEL_FILENAME = "minifasnet.onnx"
+VOICE_EMBEDDING_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
 
 def load_models(model_dir: Path) -> None:
     """Idempotent: safe to call more than once (e.g. app factory + tests)."""
-    global _face_app, _liveness_session, _loaded
+    global _face_app, _liveness_session, _embedding_model, _loaded
 
     if _loaded:
         return
@@ -41,6 +43,13 @@ def load_models(model_dir: Path) -> None:
         )
         _liveness_session = None
 
+    from fastembed import TextEmbedding
+
+    _embedding_model = TextEmbedding(
+        model_name=VOICE_EMBEDDING_MODEL_NAME,
+        cache_dir=str(model_dir / "fastembed"),
+    )
+
     _loaded = True
 
 
@@ -58,3 +67,13 @@ def get_liveness_session() -> onnxruntime.InferenceSession:
 
 def models_ready() -> bool:
     return _face_app is not None and _liveness_session is not None
+
+
+def get_embedding_model():
+    if _embedding_model is None:
+        raise RuntimeError("Voice intent embedding model not loaded — call load_models() first")
+    return _embedding_model
+
+
+def embedding_model_ready() -> bool:
+    return _embedding_model is not None

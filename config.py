@@ -17,4 +17,5 @@ class Config:
     AI_SERVICE_API_KEY: str = os.environ.get("AI_SERVICE_API_KEY", "")
     MODEL_DIR: Path = BASE_DIR / os.environ.get("MODEL_DIR", "models")
     LIVENESS_THRESHOLD: float = float(os.environ.get("LIVENESS_THRESHOLD", 0.9))
+    VOICE_INTENT_THRESHOLD: float = float(os.environ.get("VOICE_INTENT_THRESHOLD", 0.72))
     PORT: int = int(os.environ.get("PORT", 5000))

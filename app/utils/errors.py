@@ -26,3 +26,8 @@ class NoFaceDetectedError(AppError):
 class MultipleFacesDetectedError(AppError):
     def __init__(self, details: dict[str, Any] | None = None) -> None:
         super().__init__(422, "Multiple faces detected", details)
+
+
+class IntentNotRecognizedError(AppError):
+    def __init__(self, details: dict[str, Any] | None = None) -> None:
+        super().__init__(422, "Voice command intent not recognized", details)

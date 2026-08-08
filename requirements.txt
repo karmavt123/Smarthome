@@ -14,5 +14,8 @@ opencv-python-headless
 onnxruntime
 insightface
 
+# Voice Intent
+fastembed
+
 # Testing
 pytest

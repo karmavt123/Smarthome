@@ -1,4 +1,4 @@
-"""X-API-Key check for all /api/face-id/* routes except /health."""
+"""X-API-Key check, applied to every AI-service route except /health endpoints."""
 
 from functools import wraps
 
