@@ -1,6 +1,8 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
+import { useAtom } from 'jotai';
 import deviceService from '~/services/deviceService';
 import deviceActionService from '~/services/deviceActionService';
+import { deviceOptimisticActionsState, deviceErrorsState } from '~/atoms/deviceAtoms';
 
 const POLL_INTERVAL_MS = 1000;
 // Backend's own expiry (device_commands.expiresAt, default 30s) is swept by a
@@ -18,8 +20,8 @@ const TERMINAL_STATUSES = ['executed', 'failed', 'expired'];
 // in-flight poll/dispatch for an older generation silently no-ops once it
 // resolves, so only the most recent click's outcome can ever touch the UI.
 function useDeviceCommand() {
-  const [optimisticActions, setOptimisticActions] = useState({});
-  const [errors, setErrors] = useState({});
+  const [optimisticActions, setOptimisticActions] = useAtom(deviceOptimisticActionsState);
+  const [errors, setErrors] = useAtom(deviceErrorsState);
   const generationRef = useRef({});
   const debounceTimersRef = useRef({});
   const pollTimersRef = useRef({});
@@ -41,7 +43,7 @@ function useDeviceCommand() {
       delete next[deviceId];
       return next;
     });
-  }, []);
+  }, [setOptimisticActions]);
 
   const setError = useCallback((deviceId, message) => {
     setErrors((prev) => {
@@ -53,7 +55,7 @@ function useDeviceCommand() {
       }
       return { ...prev, [deviceId]: message };
     });
-  }, []);
+  }, [setErrors]);
 
   const settle = useCallback(
     (deviceId, generation, { ok, message }) => {
@@ -138,7 +140,7 @@ function useDeviceCommand() {
         dispatch(deviceId, action, generation);
       }, DEBOUNCE_MS);
     },
-    [dispatch, setError]
+    [dispatch, setError, setOptimisticActions]
   );
 
   const getOptimisticAction = useCallback((deviceId) => optimisticActions[deviceId], [optimisticActions]);

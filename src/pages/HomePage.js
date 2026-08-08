@@ -18,6 +18,7 @@ import {
 import useRouter from '~/hooks/useRouter';
 import useHome from '~/hooks/useHome';
 import useDeviceCommand from '~/hooks/useDeviceCommand';
+import useDevices from '~/hooks/useDevices';
 import dashboardService from '~/services/dashboardService';
 import alertService from '~/services/alertService';
 import formatRelativeTime from '~/utils/formatRelativeTime';
@@ -91,6 +92,7 @@ function HomePage() {
   const router = useRouter();
   const { currentHomeId } = useHome();
   const { toggle, getOptimisticAction, errorFor } = useDeviceCommand();
+  const { devices, setDevices } = useDevices();
 
   const [dashboard, setDashboard] = useState(null);
   const [alerts, setAlerts] = useState([]);
@@ -110,6 +112,7 @@ function HomePage() {
         }),
       ]);
       setDashboard(data);
+      setDevices(data.devices);
       setAlerts(alertsRes.data);
       setAlertsTotalPages(alertsRes.meta.totalPages);
       setLoadError(null);
@@ -118,7 +121,7 @@ function HomePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentHomeId, alertsPage]);
+  }, [currentHomeId, alertsPage, setDevices]);
 
   useEffect(() => {
     fetchDashboard();
@@ -151,11 +154,11 @@ function HomePage() {
     .filter(([sensorType]) => SENSOR_META[sensorType])
     .map(([sensorType, sensor]) => buildStat(sensorType, sensor));
 
-  const controllableDevices = dashboard.devices.filter((d) =>
+  const controllableDevices = devices.filter((d) =>
     CONTROLLABLE_TYPES.includes(d.deviceType)
   );
 
-  const roomDeviceCounts = dashboard.devices.reduce((acc, device) => {
+  const roomDeviceCounts = devices.reduce((acc, device) => {
     if (!device.room) return acc;
     acc[device.room.id] = (acc[device.room.id] || 0) + 1;
     return acc;
@@ -175,7 +178,7 @@ function HomePage() {
     meta: `${formatRelativeTime(alert.createdAt)} • ${alert.message}`,
   }));
 
-  const deviceListItems = dashboard.devices.map((device) => ({
+  const deviceListItems = devices.map((device) => ({
     id: device.id,
     icon: DEVICE_TYPE_ICON[device.deviceType] || faMicrochip,
     name: device.name,

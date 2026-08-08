@@ -4,6 +4,7 @@ import { faPlus, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import useRouter from '~/hooks/useRouter';
 import useHome from '~/hooks/useHome';
 import useDeviceCommand from '~/hooks/useDeviceCommand';
+import useDevices from '~/hooks/useDevices';
 import dashboardService from '~/services/dashboardService';
 import roomService from '~/services/roomService';
 import deviceService from '~/services/deviceService';
@@ -41,6 +42,7 @@ function RoomsPage() {
   const router = useRouter();
   const { currentHomeId } = useHome();
   const { toggle, getOptimisticAction, errorFor } = useDeviceCommand();
+  const { devices, setDevices } = useDevices();
 
   const [dashboard, setDashboard] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,13 +60,14 @@ function RoomsPage() {
     try {
       const data = await dashboardService.get(currentHomeId);
       setDashboard(data);
+      setDevices(data.devices);
       setLoadError(null);
     } catch (err) {
       setLoadError(err?.message || 'Không thể tải dữ liệu, thử lại sau.');
     } finally {
       setIsLoading(false);
     }
-  }, [currentHomeId]);
+  }, [currentHomeId, setDevices]);
 
   useEffect(() => {
     fetchDashboard();
@@ -122,7 +125,7 @@ function RoomsPage() {
     );
   }
 
-  const { rooms, devices } = dashboard;
+  const { rooms } = dashboard;
   const requestedRoomId = Number(router.queryParams.roomId);
   const activeRoomId = rooms.some((room) => room.id === requestedRoomId) ? requestedRoomId : rooms[0]?.id;
   const activeRoom = rooms.find((room) => room.id === activeRoomId);

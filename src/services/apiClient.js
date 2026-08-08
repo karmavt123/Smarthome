@@ -78,6 +78,14 @@ class ApiClient {
     return localStorage.getItem(REFRESH_TOKEN_KEY);
   }
 
+  getAccessToken() {
+    return this.accessToken;
+  }
+
+  getBaseUrl() {
+    return this.client.defaults.baseURL;
+  }
+
   get(url, params) {
     return this.client.get(url, { params });
   }

@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import useRouter from '~/hooks/useRouter';
 import useAuth from '~/hooks/useAuth';
 import useHome from '~/hooks/useHome';
+import useDeviceStatusStream from '~/hooks/useDeviceStatusStream';
 import {
   faTableCellsLarge,
   faHouse,
@@ -36,6 +37,7 @@ function MainLayout() {
   const router = useRouter();
   const { isAuthenticated, isLoading, logout } = useAuth();
   const { currentHomeId, isLoadingHomes } = useHome();
+  useDeviceStatusStream(isAuthenticated);
 
   if (isLoading || (isAuthenticated && isLoadingHomes)) {
     return (

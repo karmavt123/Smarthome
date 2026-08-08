@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSpinner } from '@fortawesome/free-solid-svg-icons';
 import useHome from '~/hooks/useHome';
 import useDeviceCommand from '~/hooks/useDeviceCommand';
+import useDevices from '~/hooks/useDevices';
 import dashboardService from '~/services/dashboardService';
 import deviceService from '~/services/deviceService';
 import faceProfileService from '~/services/faceProfileService';
@@ -26,9 +27,10 @@ const HISTORY_PAGE_SIZE = 10;
 function SecurityPage() {
   const { currentHomeId } = useHome();
   const { toggle, getOptimisticAction } = useDeviceCommand();
+  const { setDevices, upsertDevice, getDeviceById } = useDevices();
 
   const [dashboard, setDashboard] = useState(null);
-  const [doorDevice, setDoorDevice] = useState(null);
+  const [doorDeviceId, setDoorDeviceId] = useState(null);
   const [faceProfiles, setFaceProfiles] = useState([]);
   const [hasPin, setHasPin] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,9 +65,11 @@ function SecurityPage() {
       setDashboard(dashboardData);
       setFaceProfiles(profiles);
 
+      setDevices(dashboardData.devices);
       const doors = Array.isArray(doorsRes) ? doorsRes : doorsRes.data;
       const door = doors[0] || null;
-      setDoorDevice(door);
+      if (door) upsertDevice(door);
+      setDoorDeviceId(door?.id ?? null);
       if (door) {
         const pinStatus = await doorAccessService.getPinStatus(door.id);
         setHasPin(pinStatus.hasPin);
@@ -76,7 +80,7 @@ function SecurityPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentHomeId]);
+  }, [currentHomeId, setDevices, upsertDevice]);
 
   useEffect(() => {
     fetchData();
@@ -91,7 +95,7 @@ function SecurityPage() {
     if (hasPin === false) setPasscodeModalOpen(true);
   }, [hasPin]);
 
-  const doorDeviceId = doorDevice?.id;
+  const doorDevice = getDeviceById(doorDeviceId);
 
   const fetchHistory = useCallback(
     async (method) => {
