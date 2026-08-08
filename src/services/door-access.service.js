@@ -5,6 +5,7 @@ const { requireDevice } = require("./ownership.service");
 const faceIdClientService = require("./face-id-client.service");
 const deviceCommandService = require("./device-command.service");
 const alertEvaluationService = require("./alert-evaluation.service");
+const sseService = require("./sse.service");
 const { saveFaceImage } = require("../utils/face-image-storage");
 
 const ACCESS_METHODS = ["password", "face", "app", "voice", "manual"];
@@ -76,7 +77,9 @@ async function createDoorAccessEvent(userId, payload) {
     throw new HttpError(400, "failureReason is required for failed access");
   }
 
-  return prisma.$transaction(async (tx) => {
+  let updatedDevice = null;
+
+  const { accessLog, deviceAction } = await prisma.$transaction(async (tx) => {
     const accessLog = await tx.door_access_logs.create({
       data: {
         door_device_id: device.id,
@@ -102,7 +105,7 @@ async function createDoorAccessEvent(userId, payload) {
     });
 
     if (result === "success") {
-      await tx.devices.update({
+      updatedDevice = await tx.devices.update({
         where: { id: device.id },
         data: {
           status: "open",
@@ -114,6 +117,19 @@ async function createDoorAccessEvent(userId, payload) {
 
     return { accessLog, deviceAction };
   });
+
+  // Published after the transaction commits — bypasses device_commands/finalizeCommand
+  // (this endpoint writes the door's open status directly), so it needs its own publish.
+  if (updatedDevice) {
+    sseService.publish(Number(userId), "device_status", {
+      deviceId: updatedDevice.id,
+      status: updatedDevice.status,
+      connectionStatus: updatedDevice.connection_status,
+      lastSeenAt: updatedDevice.last_seen_at,
+    });
+  }
+
+  return { accessLog, deviceAction };
 }
 
 async function faceLockStatus(doorDeviceId) {

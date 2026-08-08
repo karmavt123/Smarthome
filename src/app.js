@@ -23,6 +23,7 @@ const alertsRoutes = require('./routes/alerts.routes');
 const doorAccessRoutes = require('./routes/door-access.routes');
 const voiceCommandsRoutes = require('./routes/voice-commands.routes');
 const faceProfilesRoutes = require('./routes/face-profiles.routes');
+const eventsRoutes = require('./routes/events.routes');
 const errorHandler = require('./middlewares/error.middleware');
 
 const app = express();
@@ -55,6 +56,7 @@ app.use('/api', alertsRoutes);
 app.use('/api', doorAccessRoutes);
 app.use('/api', voiceCommandsRoutes);
 app.use('/api', faceProfilesRoutes);
+app.use('/api', eventsRoutes);
 
 app.use(errorHandler);
 

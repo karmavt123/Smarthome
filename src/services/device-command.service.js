@@ -1,36 +1,50 @@
-const crypto = require('crypto');
-const prisma = require('../config/prisma');
-const HttpError = require('../utils/http-error');
-const { requireDevice } = require('./ownership.service');
-const { isSimulatedDevice, isDevicePaused } = require('../simulator/state');
+const crypto = require("crypto");
+const prisma = require("../config/prisma");
+const HttpError = require("../utils/http-error");
+const { requireDevice } = require("./ownership.service");
+const { isSimulatedDevice, isDevicePaused } = require("../simulator/state");
+const sseService = require("./sse.service");
 
-const COMMAND_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const COMMAND_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const ACTIONS_BY_DEVICE_TYPE = {
-  light: ['turn_on', 'turn_off', 'set_color'],
-  fan: ['turn_on', 'turn_off', 'set_speed'],
-  door: ['open', 'close'],
+  light: ["turn_on", "turn_off", "set_color"],
+  fan: ["turn_on", "turn_off", "set_speed"],
+  door: ["open", "close"],
 };
 
 const STATUS_BY_ACTION = {
-  turn_on: 'on',
-  turn_off: 'off',
-  open: 'open',
-  close: 'closed',
+  turn_on: "on",
+  turn_off: "off",
+  open: "open",
+  close: "closed",
 };
 
 function validateAction(device, action, value = null) {
   const supported = ACTIONS_BY_DEVICE_TYPE[device.device_type] || [];
   if (!supported.includes(action)) {
-    throw new HttpError(400, `${action} is not supported for ${device.device_type} devices`);
+    throw new HttpError(
+      400,
+      `${action} is not supported for ${device.device_type} devices`,
+    );
   }
-  if (action === 'set_speed' && (!Number.isInteger(value) || value < 0 || value > 100)) {
-    throw new HttpError(400, 'setSpeed value must be an integer from 0 to 100');
+  if (
+    action === "set_speed" &&
+    (!Number.isInteger(value) || value < 0 || value > 100)
+  ) {
+    throw new HttpError(400, "setSpeed value must be an integer from 0 to 100");
   }
-  if (action === 'set_color' && (typeof value !== 'string' || !/^#[0-9a-f]{6}$/i.test(value))) {
-    throw new HttpError(400, 'setColor value must be a hex color such as #33AAFF');
+  if (
+    action === "set_color" &&
+    (typeof value !== "string" || !/^#[0-9a-f]{6}$/i.test(value))
+  ) {
+    throw new HttpError(
+      400,
+      "setColor value must be a hex color such as #33AAFF",
+    );
   }
-  if (!['set_speed', 'set_color'].includes(action) && value != null) {
+  if (!["set_speed", "set_color"].includes(action) && value != null) {
     throw new HttpError(400, `${action} does not accept a value`);
   }
 }
@@ -40,9 +54,9 @@ function sameJson(left, right) {
 }
 
 function executionStatus(status) {
-  if (status === 'executed') return 'success';
-  if (status === 'failed' || status === 'expired') return 'failed';
-  return 'pending';
+  if (status === "executed") return "success";
+  if (status === "failed" || status === "expired") return "failed";
+  return "pending";
 }
 
 function presentCommand(command) {
@@ -51,18 +65,23 @@ function presentCommand(command) {
 }
 
 function deviceStatusAfter(command) {
-  if (command.action === 'set_speed') {
-    return Number(command.value) === 0 ? 'off' : `speed:${command.value}`;
+  if (command.action === "set_speed") {
+    return Number(command.value) === 0 ? "off" : `speed:${command.value}`;
   }
-  if (command.action === 'set_color') return `color:${command.value}`;
+  if (command.action === "set_color") return `color:${command.value}`;
   return STATUS_BY_ACTION[command.action];
 }
 
 async function finalizeCommand(commandId, status, failureReason = null) {
-  const command = await prisma.device_commands.findUnique({ where: { id: commandId } });
-  if (!command || ['executed', 'failed', 'expired'].includes(command.status)) return command;
+  const command = await prisma.device_commands.findUnique({
+    where: { id: commandId },
+  });
+  if (!command || ["executed", "failed", "expired"].includes(command.status))
+    return command;
 
-  return prisma.$transaction(async (tx) => {
+  let updatedDevice = null;
+
+  const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.device_commands.update({
       where: { id: command.id },
       data: {
@@ -72,13 +91,13 @@ async function finalizeCommand(commandId, status, failureReason = null) {
       },
     });
 
-    if (status === 'executed') {
-      await tx.devices.update({
+    if (status === "executed") {
+      updatedDevice = await tx.devices.update({
         where: { id: command.device_id },
         data: {
           status: deviceStatusAfter(command),
           last_seen_at: new Date(),
-          connection_status: 'online',
+          connection_status: "online",
         },
       });
     }
@@ -89,12 +108,26 @@ async function finalizeCommand(commandId, status, failureReason = null) {
         user_id: command.user_id,
         action: command.action,
         control_method: command.control_method,
-        execution_status: status === 'executed' ? 'success' : 'failed',
+        execution_status: status === "executed" ? "success" : "failed",
         failure_reason: failureReason,
       },
     });
     return updated;
   });
+
+  // Published after the transaction commits, to the user who owns the device
+  // (already verified in createDeviceCommand) — a stalled SSE write must not
+  // hold the DB transaction open.
+  if (updatedDevice) {
+    sseService.publish(command.user_id, "device_status", {
+      deviceId: updatedDevice.id,
+      status: updatedDevice.status,
+      connectionStatus: updatedDevice.connection_status,
+      lastSeenAt: updatedDevice.last_seen_at,
+    });
+  }
+
+  return result;
 }
 
 async function processSimulatedCommand(commandId, random = Math.random) {
@@ -102,29 +135,45 @@ async function processSimulatedCommand(commandId, random = Math.random) {
     where: { id: commandId },
     include: { devices: true },
   });
-  if (!command || !['pending', 'delivered'].includes(command.status)) return command;
+  if (!command || !["pending", "delivered"].includes(command.status))
+    return command;
 
-  if (command.devices.connection_status !== 'online' || isDevicePaused(command.device_id)) {
-    return finalizeCommand(command.id, 'failed', 'Device is offline');
+  if (
+    command.devices.connection_status !== "online" ||
+    isDevicePaused(command.device_id)
+  ) {
+    return finalizeCommand(command.id, "failed", "Device is offline");
   }
 
-  const configuredFailureRate = Number(process.env.SIMULATOR_COMMAND_FAILURE_RATE);
+  const configuredFailureRate = Number(
+    process.env.SIMULATOR_COMMAND_FAILURE_RATE,
+  );
   const failureRate = Math.min(
-    Math.max(Number.isFinite(configuredFailureRate) ? configuredFailureRate : 0.08, 0),
-    1
+    Math.max(
+      Number.isFinite(configuredFailureRate) ? configuredFailureRate : 0.08,
+      0,
+    ),
+    1,
   );
   if (random() < failureRate) {
-    return finalizeCommand(command.id, 'failed', 'Simulated device rejected the command');
+    return finalizeCommand(
+      command.id,
+      "failed",
+      "Simulated device rejected the command",
+    );
   }
 
-  return finalizeCommand(command.id, 'executed');
+  return finalizeCommand(command.id, "executed");
 }
 
 function scheduleSimulatedCommand(commandId) {
-  const delay = Math.max(Number(process.env.SIMULATOR_COMMAND_DELAY_MS) || 800, 0);
+  const delay = Math.max(
+    Number(process.env.SIMULATOR_COMMAND_DELAY_MS) || 800,
+    0,
+  );
   const timer = setTimeout(() => {
     processSimulatedCommand(commandId).catch((error) => {
-      console.error('Failed to process simulated command:', error);
+      console.error("Failed to process simulated command:", error);
     });
   }, delay);
   timer.unref?.();
@@ -134,30 +183,33 @@ async function createDeviceCommand(
   userId,
   deviceId,
   action,
-  controlMethod = 'app',
+  controlMethod = "app",
   value = null,
-  requestedCommandId = null
+  requestedCommandId = null,
 ) {
   const device = await requireDevice(userId, deviceId);
   validateAction(device, action, value);
   if (requestedCommandId && !COMMAND_ID_PATTERN.test(requestedCommandId)) {
-    throw new HttpError(400, 'commandId must be a valid UUID');
+    throw new HttpError(400, "commandId must be a valid UUID");
   }
   const commandId = requestedCommandId || crypto.randomUUID();
   const expiresAt = new Date(
-    Date.now() + Math.max(Number(process.env.DEVICE_COMMAND_TTL_SECONDS) || 30, 1) * 1000
+    Date.now() +
+      Math.max(Number(process.env.DEVICE_COMMAND_TTL_SECONDS) || 30, 1) * 1000,
   );
 
-  const existing = await prisma.device_commands.findUnique({ where: { id: commandId } });
+  const existing = await prisma.device_commands.findUnique({
+    where: { id: commandId },
+  });
   if (existing) {
     if (
-      existing.user_id !== Number(userId)
-      || existing.device_id !== device.id
-      || existing.action !== action
-      || existing.control_method !== controlMethod
-      || !sameJson(existing.value, value)
+      existing.user_id !== Number(userId) ||
+      existing.device_id !== device.id ||
+      existing.action !== action ||
+      existing.control_method !== controlMethod ||
+      !sameJson(existing.value, value)
     ) {
-      throw new HttpError(409, 'commandId is already used for another command');
+      throw new HttpError(409, "commandId is already used for another command");
     }
     return { device, action: presentCommand(existing), duplicate: true };
   }
@@ -187,16 +239,18 @@ async function getDeviceAction(userId, actionId) {
     include: { devices: true },
   });
 
-  if (!command) throw new HttpError(404, 'Device command not found');
+  if (!command) throw new HttpError(404, "Device command not found");
   return presentCommand(command);
 }
 
 async function listDeviceActions(userId, query = {}) {
   const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
   let statusFilter;
-  if (query.status === 'pending') statusFilter = { in: ['pending', 'delivered'] };
-  else if (query.status === 'success') statusFilter = 'executed';
-  else if (query.status === 'failed') statusFilter = { in: ['failed', 'expired'] };
+  if (query.status === "pending")
+    statusFilter = { in: ["pending", "delivered"] };
+  else if (query.status === "success") statusFilter = "executed";
+  else if (query.status === "failed")
+    statusFilter = { in: ["failed", "expired"] };
   else if (query.status) statusFilter = query.status;
 
   const commands = await prisma.device_commands.findMany({
@@ -209,7 +263,7 @@ async function listDeviceActions(userId, query = {}) {
       ...(statusFilter ? { status: statusFilter } : {}),
     },
     include: { devices: true },
-    orderBy: { created_at: 'desc' },
+    orderBy: { created_at: "desc" },
     take: limit,
   });
   return commands.map(presentCommand);
@@ -218,14 +272,18 @@ async function listDeviceActions(userId, query = {}) {
 async function expirePendingCommands(referenceTime = new Date()) {
   const pending = await prisma.device_commands.findMany({
     where: {
-      status: { in: ['pending', 'delivered'] },
+      status: { in: ["pending", "delivered"] },
       expires_at: { lte: referenceTime },
     },
     select: { id: true },
   });
 
   for (const command of pending) {
-    await finalizeCommand(command.id, 'expired', 'Command acknowledgement timed out');
+    await finalizeCommand(
+      command.id,
+      "expired",
+      "Command acknowledgement timed out",
+    );
   }
 
   return pending.length;
