@@ -25,6 +25,9 @@ const router = express.Router();
  *       - `device_created` / `device_updated` / `device_deleted`: the device
  *         record itself (deleted only sends { id, homeId}) whenever a device
  *         is added, renamed/moved, or removed via the /devices endpoints.
+ *       - `devices_paired`: an array of device records whenever a batch is
+ *         added via POST /devices/pair; sent to the user who issued the
+ *         pairing token (device pairing itself has no signed-in user).
  *     parameters:
  *       - in: query
  *         name: token

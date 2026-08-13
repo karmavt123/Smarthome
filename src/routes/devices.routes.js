@@ -2,9 +2,56 @@ const express = require('express');
 const devicesController = require('../controllers/devices.controller');
 const deviceCommandController = require('../controllers/device-command.controller');
 const telemetryController = require('../controllers/telemetry.controller');
+const devicePairingController = require('../controllers/device-pairing.controller');
 const requireAuth = require('../middlewares/auth.middleware');
 
 const router = express.Router();
+
+/**
+ * @openapi
+ * /api/devices/pair:
+ *   post:
+ *     summary: Redeem a pairing token to bind one or more devices to the home it was issued for
+ *     description: >
+ *       Unauthenticated — the pairing token (from POST /api/devices/pairing-tokens) is the
+ *       credential, since this is called by the device/board itself, not a signed-in user.
+ *       Single-use; the token is consumed on the first successful call. All paired devices
+ *       are placed in the home's first room (lowest room id), or unassigned if it has none.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [pairingToken, devices]
+ *             properties:
+ *               pairingToken:
+ *                 type: string
+ *               devices:
+ *                 type: array
+ *                 minItems: 1
+ *                 items:
+ *                   type: object
+ *                   required: [deviceType, deviceCode, name]
+ *                   properties:
+ *                     deviceType:
+ *                       type: string
+ *                       enum: [light, fan, door, sensor]
+ *                     deviceCode:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *     responses:
+ *       201:
+ *         description: Devices created and bound to the home
+ *       400:
+ *         description: Invalid payload
+ *       404:
+ *         description: Invalid pairing token
+ *       410:
+ *         description: Pairing token expired or already used
+ */
+router.post('/devices/pair', devicePairingController.pair);
 
 router.use('/devices', requireAuth);
 
@@ -59,6 +106,37 @@ router.use('/devices', requireAuth);
  */
 router.get('/devices', devicesController.index);
 router.post('/devices', devicesController.create);
+
+/**
+ * @openapi
+ * /api/devices/pairing-tokens:
+ *   post:
+ *     summary: Generate a short-lived pairing token to bind a new device to a home
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [homeId]
+ *             properties:
+ *               homeId:
+ *                 type: integer
+ *     responses:
+ *       201:
+ *         description: Pairing token created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token: { type: string }
+ *                 expiresAt: { type: string, format: date-time }
+ *       404:
+ *         description: Home not found
+ */
+router.post('/devices/pairing-tokens', devicePairingController.create);
 
 /**
  * @openapi
