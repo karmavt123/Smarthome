@@ -25,7 +25,7 @@ import VoiceSearchModal from '~/components/VoiceSearchModal';
 
 const NAV_ITEMS = [
   { to: '/tong-quan', label: 'Tổng quan', icon: faTableCellsLarge, matchPaths: ['/'] },
-  { to: '/phong', label: 'Phòng', icon: faHouse },
+  { to: '/thiet-bi', label: 'Thiết bị', icon: faHouse },
   { to: '/an-ninh', label: 'An ninh', icon: faShieldHalved },
   { to: '/thong-ke', label: 'Thống kê', icon: faChartColumn },
   { to: '/thong-bao', label: 'Thông báo', icon: faBell },

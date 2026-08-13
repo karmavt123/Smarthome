@@ -5,9 +5,9 @@ import useEnvironment from '~/hooks/useEnvironment';
 import useAlerts from '~/hooks/useAlerts';
 
 // Single SSE connection for realtime push from the backend — `device_status`,
-// `device_created`, `device_updated`, `device_deleted`, `sensor_reading` and
-// `alert` events land on the same stream. Runs once at the authenticated
-// shell (MainLayout) so it stays open across page navigation.
+// `device_created`, `device_updated`, `device_deleted`, `devices_paired`,
+// `sensor_reading` and `alert` events land on the same stream. Runs once at
+// the authenticated shell (MainLayout) so it stays open across page navigation.
 function useEventsStream(enabled) {
   const { patchDevice, upsertDevice, removeDevice } = useDevices();
   const { patchSensorReading } = useEnvironment();
@@ -45,6 +45,12 @@ function useEventsStream(enabled) {
     source.addEventListener('device_deleted', (e) => {
       const data = JSON.parse(e.data);
       removeDevice(data.deviceId ?? data.id);
+    });
+
+    source.addEventListener('devices_paired', (e) => {
+      const data = JSON.parse(e.data);
+      const devicesList = Array.isArray(data) ? data : [];
+      devicesList.forEach(upsertDevice);
     });
 
     source.addEventListener('sensor_reading', (e) => {

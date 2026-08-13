@@ -5,6 +5,7 @@ import useRouter from '~/hooks/useRouter';
 import useAuth from '~/hooks/useAuth';
 import useHome from '~/hooks/useHome';
 import homeService from '~/services/homeService';
+import roomService from '~/services/roomService';
 import Modal from '~/components/Modal';
 import HomeCard from '~/components/HomeCard';
 import AddHomeCard from '~/components/AddHomeCard';
@@ -34,6 +35,7 @@ function SelectHomePage() {
     setSubmitError(null);
     try {
       const home = await homeService.create({ name, address });
+      await roomService.create({ name: `Phòng của nhà ${home.name}`, homeId: home.id });
       await refreshHomes();
       setModalOpen(false);
       handleSelect(home.id);

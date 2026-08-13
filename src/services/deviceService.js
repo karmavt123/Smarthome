@@ -8,6 +8,7 @@ const deviceService = {
   delete: (id) => apiClient.delete(`/devices/${id}`),
   sendCommand: (id, payload) => apiClient.post(`/devices/${id}/commands`, payload),
   heartbeat: (id) => apiClient.post(`/devices/${id}/heartbeat`),
+  createPairingToken: (homeId) => apiClient.post('/devices/pairing-tokens', { homeId }),
 };
 
 export default deviceService;

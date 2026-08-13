@@ -21,6 +21,8 @@ import RoomClimateCard from '~/components/RoomClimateCard';
 import QuickControlCard from '~/components/QuickControlCard';
 import AddDeviceForm from '~/components/AddDeviceForm';
 import AddRoomForm from '~/components/AddRoomForm';
+import ConnectDeviceCard from '~/components/ConnectDeviceCard';
+import PairDeviceModal from '~/components/PairDeviceModal';
 
 const REFRESH_INTERVAL_MS = 5000;
 
@@ -56,6 +58,8 @@ function RoomsPage() {
   const [isSubmittingRoom, setIsSubmittingRoom] = useState(false);
   const [roomError, setRoomError] = useState(null);
 
+  const [pairModalOpen, setPairModalOpen] = useState(false);
+
   const fetchDashboard = useCallback(async () => {
     try {
       const [data, devicesRes] = await Promise.all([
@@ -90,7 +94,7 @@ function RoomsPage() {
       const room = await roomService.create({ name, homeId: currentHomeId });
       await fetchDashboard();
       setRoomModalOpen(false);
-      router.navigate(`/phong?roomId=${room.id}`);
+      router.navigate(`/thiet-bi?roomId=${room.id}`);
     } catch (err) {
       setRoomError(err?.status === 409 ? 'Tên phòng đã tồn tại.' : err?.message || 'Không thể tạo phòng.');
     } finally {
@@ -136,7 +140,7 @@ function RoomsPage() {
   const controllableRoomDevices = roomDevices.filter((d) => CONTROLLABLE_TYPES.includes(d.deviceType));
   const climate = activeRoom ? getRoomClimate(activeRoom, devices) : { sensorsOnline: 0 };
 
-  const selectRoom = (roomId) => router.navigate(`/phong?roomId=${roomId}`);
+  const selectRoom = (roomId) => router.navigate(`/thiet-bi?roomId=${roomId}`);
 
   const turnOffAll = () => {
     controllableRoomDevices.forEach((device) => {
@@ -158,6 +162,17 @@ function RoomsPage() {
     </Modal>
   );
 
+  if (devices.length === 0) {
+    return (
+      <div className="p-6 md:p-8 flex items-center justify-center min-h-[60vh]">
+        <div className="w-full max-w-[24rem]">
+          <ConnectDeviceCard onClick={() => setPairModalOpen(true)} />
+        </div>
+        <PairDeviceModal open={pairModalOpen} onClose={() => setPairModalOpen(false)} homeId={currentHomeId} />
+      </div>
+    );
+  }
+
   if (!activeRoom) {
     return (
       <div className="p-6 md:p-8">
@@ -177,7 +192,7 @@ function RoomsPage() {
   return (
     <div className="p-6 md:p-8">
       <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <h1 className="text-headline-md font-semibold text-on-surface">Phòng & Thiết bị</h1>
+        <h1 className="text-headline-md font-semibold text-on-surface">Thiết bị</h1>
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-tertiary/15 text-tertiary text-label-sm font-medium">
           <span className="w-1.5 h-1.5 rounded-full bg-current" />
           HỆ THỐNG HOẠT ĐỘNG
@@ -245,6 +260,8 @@ function RoomsPage() {
       </Modal>
 
       {roomModal}
+
+      <PairDeviceModal open={pairModalOpen} onClose={() => setPairModalOpen(false)} homeId={currentHomeId} />
     </div>
   );
 }

@@ -233,7 +233,7 @@ function HomePage() {
                   icon={getRoomIcon(room.name)}
                   name={room.name}
                   deviceCount={roomDeviceCounts[room.id] || 0}
-                  onClick={() => router.navigate(`/phong?roomId=${room.id}`)}
+                  onClick={() => router.navigate(`/thiet-bi?roomId=${room.id}`)}
                 />
               ))}
             </div>

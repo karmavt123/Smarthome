@@ -19,7 +19,7 @@ function App() {
       <Route path="/" element={<MainLayout />}>
         <Route index element={<HomePage />} />
         <Route path="tong-quan" element={<HomePage />} />
-        <Route path="phong" element={<RoomsPage />} />
+        <Route path="thiet-bi" element={<RoomsPage />} />
         <Route path="an-ninh" element={<SecurityPage />} />
         <Route path="thong-bao" element={<NotificationsPage />} />
         <Route path="cai-dat" element={<SettingsPage />} />
