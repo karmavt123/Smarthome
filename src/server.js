@@ -1,3 +1,5 @@
+require('./config/env').validateEnv();
+
 const app = require('./app');
 const simulatorRuntime = require('./simulator/runtime');
 
