@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 
 function requireAuth(req, res, next) {
   const header = req.headers.authorization;
-  console.log("header", header);
+  // console.log("header", header);
   if (!header || !header.startsWith("Bearer ")) {
     return res.status(401).json({ message: "Missing access token" });
   }

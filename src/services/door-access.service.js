@@ -220,7 +220,7 @@ async function verifyFace(userId, doorDeviceId, imageFiles) {
   // the lockout (same as the old face-api.js code, which threw before any log was written).
   const frameBuffers = imageFiles.map((file) => file.buffer);
   const result = await faceIdClientService.verifyFace(frameBuffers, candidates);
-  console.log("result", result);
+  // console.log("result", result);
 
   if (!result.isLive) {
     // Spoofed/replayed capture — not a real match attempt against a candidate, so it doesn't
