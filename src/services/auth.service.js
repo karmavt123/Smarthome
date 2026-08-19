@@ -59,7 +59,12 @@ async function signUp({ full_name, email, password, phone }) {
 }
 
 async function signIn({ email, password }) {
-  const user = await prisma.users.findUnique({ where: { email } });
+  // The one query that needs the hash: bcrypt.compare below. sanitizeUser() strips it
+  // again before the user object leaves this function.
+  const user = await prisma.users.findUnique({
+    where: { email },
+    omit: { password_hash: false },
+  });
   if (!user) {
     const error = new Error('Invalid email or password');
     error.status = 401;
