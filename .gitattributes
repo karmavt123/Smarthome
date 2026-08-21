@@ -1,0 +1,22 @@
+# Mac dinh: chuan hoa LF trong repo va tren dia
+* text=auto eol=lf
+
+# Bat buoc LF - chay ben trong container Linux
+*.sh          text eol=lf
+*.yml         text eol=lf
+*.yaml        text eol=lf
+Dockerfile    text eol=lf
+*.Dockerfile  text eol=lf
+.env*         text eol=lf
+
+# Nhi phan - git KHONG duoc dung vao
+*.onnx  binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
