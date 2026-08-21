@@ -1,0 +1,14 @@
+# Ap dung toan repo. Moi app van giu .gitignore rieng cua no.
+
+# Env - KHONG BAO GIO commit
+.env
+.env.local
+.env.*.local
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+*.log
