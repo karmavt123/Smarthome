@@ -9,7 +9,7 @@ python-dotenv==1.2.2
 Werkzeug==3.1.8
 
 # Face ID
-numpy
+numpy<2
 opencv-python-headless
 onnxruntime
 insightface
