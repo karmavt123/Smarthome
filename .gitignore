@@ -12,3 +12,10 @@
 Thumbs.db
 
 *.log
+# Anh khuon mat dung de do nguong - KHONG commit (du lieu sinh trac hoc)
+faces/
+live/
+spoof/
+apps/ai-service/app/faces/*
+!apps/ai-service/app/faces/.gitkeep
+!apps/ai-service/app/faces/README.md

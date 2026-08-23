@@ -15,7 +15,7 @@ onnxruntime
 insightface
 
 # Voice Intent
-fastembed
+fastembed==0.8.0
 
 # Testing
 pytest

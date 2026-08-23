@@ -9,8 +9,16 @@ picking the specific device via scoreDeviceName.
 from __future__ import annotations
 
 import numpy as np
+import re
 
 from app.ai.model_loader import get_embedding_model
+
+# Embedding model gan nhu mu voi phu dinh: "khoan hay tat quat" ra fan/turn_off
+# voi confidence 0.92 (do ngay 22/08). Chan bang luat truoc khi goi model.
+NEGATION = re.compile(
+    r"(đừng|khoan|khỏi cần|không cần|chưa cần|thôi khỏi|đâu cần)",
+    re.IGNORECASE,
+)
 
 SEED_PHRASES: dict[tuple[str, str], list[str]] = {
     ("light", "turn_on"): [
@@ -58,6 +66,13 @@ SEED_PHRASES: dict[tuple[str, str], list[str]] = {
 
 _seed_labels: list[tuple[str, str]] | None = None
 _seed_vectors: np.ndarray | None = None
+NONE_LABEL = ("__none__", "__none__")
+
+SEED_PHRASES[NONE_LABEL] = [
+    "alo alo", "a lô", "ừ đúng rồi đó", "ok được rồi", "cảm ơn nhé",
+    "hôm nay trời đẹp quá", "mấy giờ rồi", "nhiệt độ phòng bao nhiêu",
+    "tôi đói bụng quá", "gọi cho mẹ",
+]
 
 
 def _l2_normalize(vectors: np.ndarray) -> np.ndarray:
@@ -85,6 +100,8 @@ def _seed_index() -> tuple[list[tuple[str, str]], np.ndarray]:
 
 def classify_intent(text: str, threshold: float) -> dict | None:
     """Returns {deviceType, action, confidence} or None if below threshold (caller returns 422)."""
+    if NEGATION.search(text):
+        return None
     labels, seed_vectors = _seed_index()
 
     query_vector = _l2_normalize(np.array(list(get_embedding_model().embed([text.lower()]))))[0]
@@ -98,6 +115,8 @@ def classify_intent(text: str, threshold: float) -> dict | None:
     (device_type, action), confidence = max(best_per_intent.items(), key=lambda item: item[1])
 
     if confidence < threshold:
+        return None
+    if (device_type, action) == NONE_LABEL:
         return None
 
     return {"deviceType": device_type, "action": action, "confidence": confidence}
