@@ -4,6 +4,7 @@ const HttpError = require("../utils/http-error");
 const { requireDevice } = require("./ownership.service");
 const { isSimulatedDevice, isDevicePaused } = require("../simulator/state");
 const sseService = require("./sse.service");
+const mqttService = require("./mqtt.service");
 
 const COMMAND_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -64,12 +65,22 @@ function presentCommand(command) {
   return { ...command, execution_status: executionStatus(command.status) };
 }
 
-function deviceStatusAfter(command) {
+// status is only ever on/off/open/close; set_speed/set_color also carry the
+// underlying number/hex in the separate `value` column instead of encoding it
+// into the status string. turn_on/turn_off/open/close have no value of their
+// own, so they leave the device's `value` column untouched (e.g. turning a
+// light off keeps its last color in `value` for the next turn_on).
+function deviceUpdateAfter(command) {
   if (command.action === "set_speed") {
-    return Number(command.value) === 0 ? "off" : `speed:${command.value}`;
+    return {
+      status: Number(command.value) === 0 ? "off" : "on",
+      value: String(command.value),
+    };
   }
-  if (command.action === "set_color") return `color:${command.value}`;
-  return STATUS_BY_ACTION[command.action];
+  if (command.action === "set_color") {
+    return { status: "on", value: String(command.value) };
+  }
+  return { status: STATUS_BY_ACTION[command.action] };
 }
 
 async function finalizeCommand(commandId, status, failureReason = null) {
@@ -95,7 +106,7 @@ async function finalizeCommand(commandId, status, failureReason = null) {
       updatedDevice = await tx.devices.update({
         where: { id: command.device_id },
         data: {
-          status: deviceStatusAfter(command),
+          ...deviceUpdateAfter(command),
           last_seen_at: new Date(),
           connection_status: "online",
         },
@@ -122,6 +133,7 @@ async function finalizeCommand(commandId, status, failureReason = null) {
     sseService.publish(command.user_id, "device_status", {
       deviceId: updatedDevice.id,
       status: updatedDevice.status,
+      value: updatedDevice.value,
       connectionStatus: updatedDevice.connection_status,
       lastSeenAt: updatedDevice.last_seen_at,
     });
@@ -227,6 +239,7 @@ async function createDeviceCommand(
   });
 
   if (isSimulatedDevice(device)) scheduleSimulatedCommand(command.id);
+  else mqttService.publishCommand(device, command);
   return { device, action: presentCommand(command), duplicate: false };
 }
 

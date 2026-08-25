@@ -151,7 +151,8 @@ describe('simulator backend flow', () => {
     await new Promise((resolve) => setTimeout(resolve, 60));
     const completed = await authenticated('get', `/api/device-actions/${queued.body.action.id}`);
     expect(completed.body.executionStatus).toBe('success');
-    expect(completed.body.devices.status).toBe('speed:65');
+    expect(completed.body.devices.status).toBe('on');
+    expect(completed.body.devices.value).toBe('65');
 
     const invalid = await authenticated(
       'post',

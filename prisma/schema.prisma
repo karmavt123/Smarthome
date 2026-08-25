@@ -91,6 +91,7 @@ model devices {
   device_code        String                    @db.VarChar(100)
   device_type        devices_device_type
   status             String                    @default("off") @db.VarChar(30)
+  value              String?                   @db.VarChar(30)
   connection_status  devices_connection_status @default(offline)
   api_key_hash       String?                   @db.Char(64)
   firmware_version   String?                   @db.VarChar(50)

@@ -30,6 +30,7 @@ async function updateHome(userId, homeId, { name, address }) {
 async function deleteHome(userId, homeId) {
   const home = await requireHome(userId, homeId);
   await prisma.homes.delete({ where: { id: home.id } });
+  return home;
 }
 
 module.exports = { listHomes, createHome, updateHome, deleteHome };

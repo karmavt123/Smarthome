@@ -64,7 +64,7 @@ router.post('/homes', controller.create);
  *         required: true
  *         schema: { type: integer }
  *     responses:
- *       204: { description: Home deleted }
+ *       200: { description: Home deleted, returns the deleted home }
  *       404: { description: Home not found }
  */
 router.patch('/homes/:id', controller.update);

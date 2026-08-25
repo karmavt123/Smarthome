@@ -41,6 +41,16 @@ const router = express.Router();
  *                       type: string
  *                     name:
  *                       type: string
+ *                     sensorTypes:
+ *                       type: array
+ *                       description: >
+ *                         Required when deviceType is "sensor". One or more of
+ *                         temperature/humidity/light — a matching `sensors` row is
+ *                         created for each (with a default unit/range) so MQTT
+ *                         readings have something to attach to right away.
+ *                       items:
+ *                         type: string
+ *                         enum: [temperature, humidity, light]
  *     responses:
  *       201:
  *         description: Devices created and bound to the home
