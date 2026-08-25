@@ -298,7 +298,7 @@ Ba ngưỡng dưới đây **phải đo trên dữ liệu thật**, không kế 
 
 | Ngưỡng | Script | Trạng thái |
 |---|---|---|
-| `FACE_MATCH_THRESHOLD` | `tools/measure_faces.py` | đang đo |
+| `FACE_MATCH_THRESHOLD` | `tools/measure_faces.py` | **1.24** |
 | `LIVENESS_THRESHOLD` | `tools/measure_liveness.py` | chưa đo |
 | `VOICE_INTENT_THRESHOLD` | `tools/measure_voice.py` | **0.73** (fastembed 0.8.0) |
 
