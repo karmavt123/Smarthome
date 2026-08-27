@@ -18,4 +18,9 @@ async function destroy(req, res) {
   res.json(serialize(home));
 }
 
-module.exports = { index, create, update, destroy };
+async function destroyByHomeId(req, res) {
+  const home = await homesService.deleteHome(req.user.sub, req.body.home_id);
+  res.json(serialize(home));
+}
+
+module.exports = { index, create, update, destroy, destroyByHomeId };

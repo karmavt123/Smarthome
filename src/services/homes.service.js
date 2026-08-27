@@ -28,6 +28,7 @@ async function updateHome(userId, homeId, { name, address }) {
 }
 
 async function deleteHome(userId, homeId) {
+  if (!homeId) throw new HttpError(400, 'homeId is required');
   const home = await requireHome(userId, homeId);
   await prisma.homes.delete({ where: { id: home.id } });
   return home;

@@ -318,7 +318,7 @@ model voice_commands {
   confidence_score Decimal?                        @db.Decimal(5, 4)
   execution_status voice_commands_execution_status
   created_at       DateTime                        @default(now()) @db.DateTime(0)
-  devices          devices?                        @relation(fields: [device_id], references: [id], map: "fk_voice_commands_device")
+  devices          devices?                        @relation(fields: [device_id], references: [id], onDelete: Cascade, map: "fk_voice_commands_device")
   users            users?                          @relation(fields: [user_id], references: [id], map: "fk_voice_commands_user")
 
   @@index([device_id], map: "fk_voice_commands_device")
