@@ -1,0 +1,17 @@
+# Docker TU DONG doc file nay chong len docker-compose.yml.
+#   docker compose up                          -> dev  (base + file nay)
+#   docker compose -f docker-compose.yml up    -> demo (chi base)
+#
+# KHONG khai bao `ports` o day: Compose NOI THEM chu khong thay the,
+# nen se thanh hai mapping cung mot cong host -> "port is already allocated".
+# Thay vao do cho vite lang nghe cong 80 de dung lai mapping "8000:80" cua base.
+services:
+  frontend:
+    build:
+      target: build          # dung o stage build, khong sang nginx
+    command: npm run start -- --host 0.0.0.0 --port 80
+    volumes:
+      - ./apps/frontend:/app
+      # Volume an danh: che node_modules cua host. Bat buoc - node_modules
+      # build tren Windows co binary sai nen tang, mount vao container Linux la hong.
+      - /app/node_modules

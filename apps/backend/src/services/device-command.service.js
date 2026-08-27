@@ -4,6 +4,7 @@ const HttpError = require("../utils/http-error");
 const { requireDevice } = require("./ownership.service");
 const { isSimulatedDevice, isDevicePaused } = require("../simulator/state");
 const sseService = require("./sse.service");
+const { isBoardDevice } = require("../mqtt/channel-map");
 
 const COMMAND_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -226,7 +227,12 @@ async function createDeviceCommand(
     },
   });
 
-  if (isSimulatedDevice(device)) scheduleSimulatedCommand(command.id);
+  if (isSimulatedDevice(device)) {
+    scheduleSimulatedCommand(command.id);
+  } else if (isBoardDevice(device)) {
+    require("../mqtt/commands").scheduleMqttCommand(command.id);
+  }
+  
   return { device, action: presentCommand(command), duplicate: false };
 }
 
