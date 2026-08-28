@@ -4,6 +4,20 @@ const { storeReadings } = require('../services/telemetry.service');
 const { INBOUND, BOARD_PREFIX } = require('./channel-map');
 
 let client = null;
+// Board gui nhieu kenh (V1+V2+V3) gan nhu cung luc. Xu ly song song thi moi
+// message mo mot transaction rieng, cung UPDATE mot dong `devices`
+// (last_seen_at / connection_status) -> MySQL deadlock (P2034).
+// Chay tuan tu qua mot hang doi duy nhat la loai bo han kha nang hai
+// transaction dung nhau. Cung cach xu ly nhu src/services/mqtt.service.js.
+let messageQueue = Promise.resolve();
+
+function enqueue(task) {
+  const result = messageQueue.then(task);
+  // Nuot loi tai day de mot message hong khong chan nhung message sau trong
+  // hang doi; loi that van duoc log o .catch() cua caller.
+  messageQueue = result.catch(() => {});
+  return result;
+}
 
 function topicFor(channel) {
   return `${process.env.MQTT_USERNAME}/feeds/${channel}`;
@@ -82,8 +96,9 @@ function start() {
   });
 
   client.on('message', (topic, payload) => {
-    handleReading(channelFromTopic(topic), payload.toString())
-      .catch((err) => console.error(`[mqtt] xu ly ${topic} loi:`, err.message));
+    enqueue(() => handleReading(channelFromTopic(topic), payload.toString())).catch((err) => {
+      console.error(`[mqtt] xu ly ${topic} loi:`, err.message);
+    });
   });
 
   client.on('error', (err) => console.error('[mqtt] loi:', err.message));
