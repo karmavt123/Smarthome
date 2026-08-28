@@ -32,7 +32,7 @@ function compareValue(value, operator, threshold) {
 
 function publishAlert(userId, alert, transition) {
   sseService.publish(userId, 'alert', {
-    alert_id: alert.id,
+    id: alert.id,
     home_id: alert.home_id,
     alert_type: alert.alert_type,
     severity: alert.severity,

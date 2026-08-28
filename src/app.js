@@ -36,7 +36,7 @@ const app = express();
 app.set("query parser", (str) => humps.decamelizeKeys(querystring.parse(str)));
 
 app.get("/health", (req, res) => {
-  console.log("Health request received");
+  // console.log("Health request received");
 
   res.status(200).send("OK");
 });

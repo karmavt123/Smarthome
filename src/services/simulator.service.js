@@ -13,17 +13,28 @@ const SIMULATION_HOME_NAME = 'Simulation Home';
 
 async function upsertDevice(userId, homeId, roomId, suffix, data) {
   const deviceCode = `sim-${userId}-${suffix}`;
-  return prisma.devices.upsert({
-    where: { device_code: deviceCode },
-    update: {
-      home_id: homeId,
-      room_id: roomId,
-      name: data.name,
-      device_type: data.device_type,
-      connection_status: 'online',
-      last_seen_at: new Date(),
-    },
-    create: {
+
+  // device_code lost its unique constraint in migration 20260812154327_drop_device_code_unique,
+  // so prisma.upsert({ where: { device_code } }) no longer validates — upsert requires a unique
+  // field. Find-then-write instead, same shape as the home/room/faceProfile blocks below.
+  const existing = await prisma.devices.findFirst({ where: { device_code: deviceCode } });
+
+  if (existing) {
+    return prisma.devices.update({
+      where: { id: existing.id },
+      data: {
+        home_id: homeId,
+        room_id: roomId,
+        name: data.name,
+        device_type: data.device_type,
+        connection_status: 'online',
+        last_seen_at: new Date(),
+      },
+    });
+  }
+
+  return prisma.devices.create({
+    data: {
       home_id: homeId,
       room_id: roomId,
       name: data.name,

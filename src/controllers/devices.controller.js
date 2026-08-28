@@ -1,8 +1,9 @@
 const devicesService = require('../services/devices.service');
+const serialize = require('../utils/serialize');
 
 async function index(req, res) {
   const devices = await devicesService.listDevices(req.user.sub, req.query);
-  res.json(devices);
+  res.json(serialize(devices));                    // index
 }
 
 async function show(req, res) {
@@ -11,7 +12,7 @@ async function show(req, res) {
   if (!device) {
     return res.status(404).json({ message: 'Device not found' });
   }
-  res.json(device);
+  res.json(serialize(device));                     // show
 }
 
 async function create(req, res) {
@@ -26,13 +27,13 @@ async function create(req, res) {
   if (!device) {
     return res.status(404).json({ message: 'Home or room not found' });
   }
-  res.status(201).json(device);
+  res.status(201).json(serialize(device));         // create
 }
 
 async function update(req, res) {
   const { name, room_id } = req.body;
   const device = await devicesService.updateDevice(req.user.sub, req.params.id, { name, room_id });
-  res.json(device);
+  res.json(serialize(device));                     // update
 }
 
 async function destroy(req, res) {
