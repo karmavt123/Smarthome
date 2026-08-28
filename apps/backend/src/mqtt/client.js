@@ -1,7 +1,7 @@
 const mqtt = require('mqtt');
 const prisma = require('../config/prisma');
 const { storeReadings } = require('../services/telemetry.service');
-const { INBOUND, BOARD_PREFIX } = require('./channel-map');
+const { INBOUND, BOARD_DEVICE_CODES } = require('./channel-map');
 
 let client = null;
 // Board gui nhieu kenh (V1+V2+V3) gan nhu cung luc. Xu ly song song thi moi
@@ -31,9 +31,12 @@ function channelFromTopic(topic) {
 // storeReadings chi danh dau ban ghi `sensor` la online. Ba ban ghi con lai cua
 // cung mot board se mai mai offline -> moi lenh dieu khien bi tu choi
 // "Device is offline". Cham ca 4 cung luc.
+// KHONG dung startsWith: MySQL so chuoi khong phan biet hoa thuong, nen
+// LIKE 'yolobit-%' khop luon ca cac thiet bi 'YoloBit-A82F-*' cua duong
+// Adafruit -> danh dau nham chung la online. Liet ke thang cho chac.
 function markBoardOnline() {
   return prisma.devices.updateMany({
-    where: { device_code: { startsWith: BOARD_PREFIX } },
+    where: { device_code: { in: BOARD_DEVICE_CODES } },
     data: { last_seen_at: new Date(), connection_status: 'online' },
   });
 }

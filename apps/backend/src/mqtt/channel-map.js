@@ -26,4 +26,5 @@ function isBoardDevice(device) {
     && device.device_code.startsWith(BOARD_PREFIX);
 }
 
-module.exports = { BOARD_PREFIX, SENSOR_DEVICE_CODE, INBOUND, OUTBOUND, isBoardDevice };
+const BOARD_DEVICE_CODES = [SENSOR_DEVICE_CODE, ...Object.keys(OUTBOUND)];
+module.exports = { BOARD_PREFIX, SENSOR_DEVICE_CODE, INBOUND, OUTBOUND, isBoardDevice, BOARD_DEVICE_CODES };
