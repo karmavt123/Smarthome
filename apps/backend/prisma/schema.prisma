@@ -91,6 +91,7 @@ model devices {
   device_code        String                    @db.VarChar(100)
   device_type        devices_device_type
   status             String                    @default("off") @db.VarChar(30)
+  value              String?                   @db.VarChar(30)
   connection_status  devices_connection_status @default(offline)
   api_key_hash       String?                   @db.Char(64)
   firmware_version   String?                   @db.VarChar(50)
@@ -317,7 +318,7 @@ model voice_commands {
   confidence_score Decimal?                        @db.Decimal(5, 4)
   execution_status voice_commands_execution_status
   created_at       DateTime                        @default(now()) @db.DateTime(0)
-  devices          devices?                        @relation(fields: [device_id], references: [id], map: "fk_voice_commands_device")
+  devices          devices?                        @relation(fields: [device_id], references: [id], onDelete: Cascade, map: "fk_voice_commands_device")
   users            users?                          @relation(fields: [user_id], references: [id], map: "fk_voice_commands_user")
 
   @@index([device_id], map: "fk_voice_commands_device")

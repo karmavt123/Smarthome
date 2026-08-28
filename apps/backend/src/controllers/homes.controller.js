@@ -14,8 +14,13 @@ async function update(req, res) {
 }
 
 async function destroy(req, res) {
-  await homesService.deleteHome(req.user.sub, req.params.id);
-  res.status(204).send();
+  const home = await homesService.deleteHome(req.user.sub, req.params.id);
+  res.json(serialize(home));
 }
 
-module.exports = { index, create, update, destroy };
+async function destroyByHomeId(req, res) {
+  const home = await homesService.deleteHome(req.user.sub, req.body.home_id);
+  res.json(serialize(home));
+}
+
+module.exports = { index, create, update, destroy, destroyByHomeId };

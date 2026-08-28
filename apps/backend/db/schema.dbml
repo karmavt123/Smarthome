@@ -1,0 +1,378 @@
+// Smarthome backend DB schema — generated from prisma/schema.prisma
+// Paste at https://dbdiagram.io or import via dbdiagram's "Import DBML"
+
+Table users {
+  id            integer [pk, increment]
+  full_name     varchar(100)
+  email         varchar(255) [unique]
+  password_hash varchar(255)
+  phone         varchar(20)
+  avatar_url    text
+  role          users_role [default: 'user']
+  status        users_status [default: 'active']
+  created_at    timestamp [default: `now()`]
+  updated_at    timestamp
+}
+
+Table homes {
+  id         integer [pk, increment]
+  user_id    integer [not null]
+  name       varchar(100)
+  address    varchar(255)
+  created_at timestamp [default: `now()`]
+  updated_at timestamp
+}
+
+Table rooms {
+  id         integer [pk, increment]
+  home_id    integer [not null]
+  name       varchar(100)
+  created_at timestamp [default: `now()`]
+  updated_at timestamp
+
+  indexes {
+    (home_id, name) [unique]
+  }
+}
+
+Table devices {
+  id                integer [pk, increment]
+  home_id           integer [not null]
+  room_id           integer
+  name              varchar(100)
+  device_code       varchar(100) [note: 'not unique by design — boards can be re-paired with same code']
+  device_type       devices_device_type
+  status            varchar(30) [default: 'off', note: 'on/off/open/closed only — set_speed/set_color values go in `value`']
+  value             varchar(30) [note: 'fan speed (0-100) or light hex color, from set_speed/set_color commands']
+  connection_status devices_connection_status [default: 'offline']
+  api_key_hash      char(64)
+  firmware_version  varchar(50)
+  last_seen_at      timestamp
+  created_at        timestamp [default: `now()`]
+  updated_at        timestamp
+}
+
+Table device_actions {
+  id               bigint [pk, increment]
+  device_id        integer [not null]
+  user_id          integer
+  action            device_actions_action
+  control_method    device_actions_control_method
+  execution_status  device_actions_execution_status
+  failure_reason    varchar(255)
+  created_at        timestamp [default: `now()`]
+}
+
+Table device_commands {
+  id                char(36) [pk]
+  device_id         integer [not null]
+  user_id           integer [not null]
+  action            device_actions_action
+  value             json
+  control_method    device_actions_control_method [default: 'app']
+  status            device_commands_status [default: 'pending']
+  delivery_attempts integer [default: 0]
+  failure_reason    varchar(255)
+  created_at        timestamp [default: `now()`]
+  delivered_at      timestamp
+  acknowledged_at   timestamp
+  expires_at        timestamp [not null]
+}
+
+Table sensors {
+  id          integer [pk, increment]
+  device_id   integer [not null]
+  sensor_type sensors_sensor_type
+  unit        varchar(20)
+  min_value   decimal(10,2)
+  max_value   decimal(10,2)
+  created_at  timestamp [default: `now()`]
+  updated_at  timestamp
+
+  indexes {
+    (device_id, sensor_type) [unique]
+  }
+}
+
+Table telemetry_messages {
+  id          bigint [pk, increment]
+  device_id   integer [not null]
+  message_id  varchar(100)
+  captured_at timestamp [not null]
+  received_at timestamp [default: `now()`]
+
+  indexes {
+    (device_id, message_id) [unique]
+  }
+}
+
+Table sensor_readings {
+  id                   bigint [pk, increment]
+  sensor_id            integer [not null]
+  telemetry_message_id bigint [not null]
+  value                decimal(10,2)
+  captured_at          timestamp [not null]
+  created_at           timestamp [default: `now()`]
+}
+
+Table alert_rules {
+  id                 integer [pk, increment]
+  home_id            integer [not null]
+  sensor_id          integer
+  name               varchar(100)
+  condition_operator alert_rules_condition_operator
+  threshold_value    decimal(10,2)
+  severity           alert_rules_severity [default: 'warning']
+  is_active          boolean [default: true]
+  created_at         timestamp [default: `now()`]
+  updated_at         timestamp
+}
+
+Table alerts {
+  id            bigint [pk, increment]
+  home_id       integer [not null]
+  alert_rule_id integer
+  alert_type    alerts_alert_type
+  severity      alerts_severity [default: 'warning']
+  title         varchar(150)
+  message       text [note: 'door alerts tag [door:<id>] inline — no device_id column']
+  status        alerts_status [default: 'unread']
+  created_at    timestamp [default: `now()`]
+  updated_at    timestamp
+}
+
+Table notifications {
+  id         bigint [pk, increment]
+  user_id    integer [not null]
+  alert_id   bigint
+  title      varchar(150)
+  message    text
+  channel    notifications_channel [default: 'in_app']
+  status     notifications_status [default: 'pending']
+  updated_at timestamp
+  created_at timestamp [default: `now()`]
+}
+
+Table refresh_tokens {
+  id         bigint [pk, increment]
+  user_id    integer [not null]
+  token_hash varchar(255) [unique, note: 'SHA-256 of the actual token']
+  expires_at timestamp [not null]
+  created_at timestamp [default: `now()`]
+}
+
+Table pairing_tokens {
+  id         bigint [pk, increment]
+  home_id    integer [not null]
+  user_id    integer [not null]
+  token_hash varchar(255) [unique, note: 'SHA-256, single-use']
+  expires_at timestamp [not null]
+  used_at    timestamp
+  created_at timestamp [default: `now()`]
+}
+
+Table face_profiles {
+  id             integer [pk, increment]
+  home_id        integer [not null]
+  user_id        integer
+  name           varchar(100)
+  image_url      text
+  face_embedding text [note: 'JSON-stringified 512-d ArcFace vector, nullable']
+  is_active      boolean [default: true]
+  created_at     timestamp [default: `now()`]
+  updated_at     timestamp
+}
+
+Table door_passwords {
+  id             integer [pk, increment]
+  door_device_id integer [not null]
+  password_hash  varchar(255)
+  is_active      boolean [default: true]
+  updated_by     integer
+  created_at     timestamp [default: `now()`]
+  updated_at     timestamp
+}
+
+Table door_access_logs {
+  id               bigint [pk, increment]
+  door_device_id   integer [not null]
+  user_id          integer
+  face_profile_id  integer
+  access_method    door_access_logs_access_method
+  result           door_access_logs_result
+  confidence_score decimal(5,4)
+  snapshot_url     text
+  failure_reason   varchar(255)
+  created_at       timestamp [default: `now()`]
+}
+
+Table voice_commands {
+  id               bigint [pk, increment]
+  user_id          integer
+  device_id        integer
+  recognized_text  text
+  intent           varchar(100)
+  confidence_score decimal(5,4)
+  execution_status voice_commands_execution_status
+  created_at       timestamp [default: `now()`]
+}
+
+// ── Enums ──────────────────────────────────────────────
+
+Enum users_role {
+  admin
+  user
+}
+
+Enum users_status {
+  active
+  inactive
+}
+
+Enum devices_device_type {
+  light
+  fan
+  door
+  sensor
+}
+
+Enum devices_connection_status {
+  online
+  offline
+}
+
+Enum sensors_sensor_type {
+  temperature
+  humidity
+  light
+}
+
+Enum device_actions_action {
+  turn_on
+  turn_off
+  open
+  close
+  set_speed
+  set_color
+}
+
+Enum device_actions_control_method {
+  app
+  voice
+  password
+  face
+  automatic
+  manual
+}
+
+Enum device_actions_execution_status {
+  success
+  failed
+}
+
+Enum device_commands_status {
+  pending
+  delivered
+  executed
+  failed
+  expired
+}
+
+Enum alert_rules_condition_operator {
+  ">"
+  "<"
+  ">="
+  "<="
+  "="
+}
+
+Enum alert_rules_severity {
+  info
+  warning
+  critical
+}
+
+Enum alerts_alert_type {
+  environment
+  unauthorized_access
+  device_offline
+}
+
+Enum alerts_severity {
+  info
+  warning
+  critical
+}
+
+Enum alerts_status {
+  unread
+  read
+  resolved
+}
+
+Enum notifications_channel {
+  in_app
+  email
+  telegram
+  push
+}
+
+Enum notifications_status {
+  pending
+  sent
+  failed
+  read
+}
+
+Enum door_access_logs_access_method {
+  password
+  face
+  app
+  voice
+  manual
+}
+
+Enum door_access_logs_result {
+  success
+  failed
+}
+
+Enum voice_commands_execution_status {
+  success
+  failed
+  unknown_command
+  requires_verification
+}
+
+// ── Relationships ──────────────────────────────────────
+
+Ref: homes.user_id > users.id [delete: cascade]
+Ref: rooms.home_id > homes.id [delete: cascade]
+Ref: devices.home_id > homes.id [delete: cascade]
+Ref: devices.room_id > rooms.id
+Ref: device_actions.device_id > devices.id [delete: cascade]
+Ref: device_actions.user_id > users.id
+Ref: device_commands.device_id > devices.id [delete: cascade]
+Ref: device_commands.user_id > users.id
+Ref: sensors.device_id > devices.id [delete: cascade]
+Ref: telemetry_messages.device_id > devices.id [delete: cascade]
+Ref: sensor_readings.sensor_id > sensors.id [delete: cascade]
+Ref: sensor_readings.telemetry_message_id > telemetry_messages.id [delete: cascade]
+Ref: alert_rules.home_id > homes.id [delete: cascade]
+Ref: alert_rules.sensor_id > sensors.id
+Ref: alerts.home_id > homes.id [delete: cascade]
+Ref: alerts.alert_rule_id > alert_rules.id
+Ref: notifications.user_id > users.id [delete: cascade]
+Ref: notifications.alert_id > alerts.id
+Ref: refresh_tokens.user_id > users.id [delete: cascade]
+Ref: pairing_tokens.home_id > homes.id [delete: cascade]
+Ref: pairing_tokens.user_id > users.id [delete: cascade]
+Ref: face_profiles.home_id > homes.id [delete: cascade]
+Ref: face_profiles.user_id > users.id
+Ref: door_passwords.door_device_id > devices.id [delete: cascade]
+Ref: door_passwords.updated_by > users.id
+Ref: door_access_logs.door_device_id > devices.id [delete: cascade]
+Ref: door_access_logs.user_id > users.id
+Ref: door_access_logs.face_profile_id > face_profiles.id
+Ref: voice_commands.user_id > users.id
+Ref: voice_commands.device_id > devices.id
