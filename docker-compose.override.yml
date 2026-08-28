@@ -2,16 +2,19 @@
 #   docker compose up                          -> dev  (base + file nay)
 #   docker compose -f docker-compose.yml up    -> demo (chi base)
 #
-# KHONG khai bao `ports` o day: Compose NOI THEM chu khong thay the,
-# nen se thanh hai mapping cung mot cong host -> "port is already allocated".
-# Thay vao do cho vite lang nghe cong 80 de dung lai mapping "8000:80" cua base.
+# `image:` rieng la BAT BUOC: dev build o stage `build` (node), demo build o
+# stage nginx. Dung chung mot tag thi che do build sau se ghi de che do truoc,
+# va lan chay sau se lay nham image -> "npm: not found".
+#
+# KHONG khai bao `ports` o day: Compose NOI THEM chu khong thay the, se thanh
+# hai mapping cung mot cong host. Vite nghe cong 80 de dung lai mapping cua base.
 services:
   frontend:
+    image: smarthome-frontend-dev
     build:
-      target: build          # dung o stage build, khong sang nginx
+      target: build
     command: npm run start -- --host 0.0.0.0 --port 80
     volumes:
       - ./apps/frontend:/app
-      # Volume an danh: che node_modules cua host. Bat buoc - node_modules
-      # build tren Windows co binary sai nen tang, mount vao container Linux la hong.
+      # Volume an danh: che node_modules cua host (binary sai nen tang).
       - /app/node_modules
