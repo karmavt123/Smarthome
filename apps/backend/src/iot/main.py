@@ -5,14 +5,9 @@ from umqtt.simple import MQTTClient
 from aiot_rgbled import RGBLed
 from aiot_dht20 import DHT20
 from aiot_lcd1602 import LCD1602
-
-WIFI_SSID = "Pink Home"
-WIFI_PASSWORD = "68686868"
+from iot_config import WIFI_SSID, WIFI_PASSWORD, AIO_USERNAME, AIO_KEY
 
 device_name = "YoloBit-A82F"
-
-AIO_USERNAME = "nhathuydev"
-AIO_KEY = "aio_fXSE53ESIxrDfZCaV8FHBZ42EBnB"
 
 LIGHT_DEVICE_CODE = f"{device_name}-light"
 FAN_DEVICE_CODE = f"{device_name}-fan"
@@ -65,7 +60,7 @@ lcd.clear()
 
 # Gửi cảm biến mỗi 60s (1 phút) — vòng loop chính sleep 0.5s/lần, nên cứ 120 lần
 # lặp thì đọc+publish 1 lần. Xem SENSOR_READ_EVERY_LOOPS bên dưới trong main().
-SENSOR_READ_EVERY_LOOPS = 120
+SENSOR_READ_EVERY_LOOPS = 40
 
 # Nhớ màu vừa set gần nhất, để "ON" bật lại đúng màu đó thay vì luôn trắng.
 # Mặc định trắng khi board vừa khởi động, chưa có lệnh set_color nào.
