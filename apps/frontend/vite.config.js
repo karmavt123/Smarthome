@@ -9,8 +9,18 @@ export default defineConfig({
       '~': path.resolve(__dirname, 'src'),
     },
   },
-  server: {
+    server: {
     port: 8000,
+    proxy: {
+      '/api': {
+        target: process.env.VITE_PROXY_TARGET || 'http://backend:3000',
+        changeOrigin: true,
+      },
+      '/uploads': {
+        target: process.env.VITE_PROXY_TARGET || 'http://backend:3000',
+        changeOrigin: true,
+      },
+    },
   },
   esbuild: {
     loader: 'jsx',

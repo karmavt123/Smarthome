@@ -17,6 +17,30 @@ const prisma = require("../config/prisma");
 
 const SENSOR_TYPES = ["temperature", "humidity", "light"];
 
+// Board chi "chung minh con song" qua feed cam bien. Actuator (-light/-fan/-door)
+// khong co heartbeat rieng: last_seen_at cua chung chi doi trong finalizeCommand,
+// nen ~DEVICE_OFFLINE_AFTER_SECONDS sau moi lenh la markStaleDevicesOffline lat
+// chung ve offline du board van chay. Bat ky tin nao tu board deu la bang chung
+// ca board con song -> danh dau tat ca cung luc. Doi xung voi markBoardOnline()
+// ben src/mqtt/client.js (nhanh OhStem).
+//
+// Liet ke tuong minh, KHONG dung startsWith: collation MySQL khong phan biet hoa
+// thuong nen prefix "yolobit-" se nuot ca nhom OhStem.
+const BOARD_DEVICE_CODES = [
+  "YoloBit-A82F-light",
+  "YoloBit-A82F-fan",
+  "YoloBit-A82F-door",
+  "YoloBit-A82F-temperature-humidity-sensor",
+  "YoloBit-A82F-light-sensor",
+];
+
+function markBoardOnline() {
+  return prisma.devices.updateMany({
+    where: { device_code: { in: BOARD_DEVICE_CODES } },
+    data: { last_seen_at: new Date(), connection_status: "online" },
+  });
+}
+
 const COMMAND_PAYLOAD_BY_ACTION = {
   turn_on: "ON",
   turn_off: "OFF",
@@ -92,7 +116,7 @@ async function handleDeviceState(deviceCode) {
     where: { device_code: deviceCode },
   });
   if (!device) return;
-
+  await markBoardOnline();
   const command = await prisma.device_commands.findFirst({
     where: { device_id: device.id, status: { in: ["pending", "delivered"] } },
     orderBy: { created_at: "desc" },
@@ -130,6 +154,7 @@ async function handleSensorReading(deviceCode, sensorType, rawPayload) {
     new Date(),
     `mqtt:${crypto.randomUUID()}`,
   );
+  await markBoardOnline();
 }
 
 function connect() {

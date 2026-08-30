@@ -20,3 +20,5 @@ apps/ai-service/app/faces/*
 !apps/ai-service/app/faces/.gitkeep
 !apps/ai-service/app/faces/README.md
 apps/backend/src/iot/iot_config.py
+__pycache__/
+*.pyc

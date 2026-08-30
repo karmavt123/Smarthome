@@ -5,6 +5,8 @@ from umqtt.simple import MQTTClient
 from aiot_rgbled import RGBLed
 from aiot_dht20 import DHT20
 from aiot_lcd1602 import LCD1602
+from machine import Pin, SoftI2C
+import aiot_dht20 as dht20_lib
 from iot_config import WIFI_SSID, WIFI_PASSWORD, AIO_USERNAME, AIO_KEY
 
 device_name = "YoloBit-A82F"
@@ -47,16 +49,27 @@ DOOR_CLOSED_ANGLE = 180
 # ~100-200ms cho mỗi ~60°, 400ms đủ dư cho một lần quay 0<->90.
 DOOR_MOVE_MS = 400
 
-# Cảm biến nhiệt độ/độ ẩm DHT20
-aiot_dht20 = DHT20()
+# Cảm biến nhiệt độ/độ ẩm DHT20 — chung bus I2C với LCD ở cổng Grove
+# (SCL 22, SDA 21, lấy từ aiot_lcd1602.py). DHT20 ở 0x38, LCD ở 0x21.
+i2c = SoftI2C(scl=Pin(22), sda=Pin(21))
+
+# dht20_init() trong thư viện hãng dùng biến `i2c` TRAN (thiếu `self.`), nên nếu
+# nhánh đó chạy thì nổ NameError. Gán sẵn vào namespace của module để phòng.
+dht20_lib.i2c = i2c
+
+aiot_dht20 = DHT20(i2c)
 
 # Cảm biến ánh sáng — quang trở analog ở pin0, đọc raw 0-4095 rồi quy về 0-100
 LIGHT_SENSOR_PIN = pin0
 
 # LCD hiển thị trạng thái thay cho display.scroll() (màn LED 5x5 onboard) —
 # dễ quan sát/debug hơn khi board không cắm máy tính xem Serial.
-lcd = LCD1602()
-lcd.clear()
+try:
+    lcd = LCD1602()
+    lcd.clear()
+except Exception as e:
+    print("LCD 1602 khong tim thay, bo qua:", repr(e))
+    lcd = None
 
 # Gửi cảm biến mỗi 60s (1 phút) — vòng loop chính sleep 0.5s/lần, nên cứ 120 lần
 # lặp thì đọc+publish 1 lần. Xem SENSOR_READ_EVERY_LOOPS bên dưới trong main().
@@ -72,31 +85,43 @@ last_fan_speed = 100
 
 
 def lcd_show(text):
+    print("LCD:", text)          # luon in ra Serial de con thay khi khong co LCD
+    if lcd is None:
+        return
     lcd.clear()
     lcd.move_to(0, 0)
     lcd.putstr(text)
 
 
 def lcd_line(row, text):
-    # Đệm khoảng trắng cho đủ 16 ký tự — putstr() không tự xoá ký tự cũ còn sót
-    # lại nếu dòng mới ngắn hơn dòng trước (vd "Sent OK" ghi đè "Light:80").
-    # MicroPython trên board này không có str.ljust(), pad thủ công.
     padded = text
     if len(padded) < 16:
         padded = padded + (" " * (16 - len(padded)))
+    print("LCD[%d]: %s" % (row, text))
+    if lcd is None:
+        return
     lcd.move_to(0, row)
     lcd.putstr(padded)
 
 
-def connect_wifi():
+def connect_wifi(timeout_s=20):
     wifi = network.WLAN(network.STA_IF)
     wifi.active(True)
 
     if not wifi.isconnected():
         lcd_show("WIFI")
+        print("Dang ket noi WiFi:", WIFI_SSID)
         wifi.connect(WIFI_SSID, WIFI_PASSWORD)
 
+        # Co timeout + in status: vong cho vo han khong bao gi la kieu loi
+        # kho chan doan nhat — board dung im, khong ai biet vi sao.
+        deadline = time.ticks_add(time.ticks_ms(), timeout_s * 1000)
         while not wifi.isconnected():
+            if time.ticks_diff(deadline, time.ticks_ms()) <= 0:
+                status = wifi.status()
+                print("WIFI THAT BAI, status =", status)
+                lcd_show("WIFI FAIL")
+                raise Exception("Khong vao duoc WiFi '%s' (status %s)" % (WIFI_SSID, status))
             time.sleep(0.5)
 
     print("WIFI CONNECTED:", wifi.ifconfig())
@@ -226,7 +251,8 @@ def read_and_publish_sensor():
 
     print("TEMPERATURE:", temperature, "HUMIDITY:", humidity, "LIGHT:", light_level)
 
-    lcd.clear()
+    if lcd is not None:
+        lcd.clear()
     lcd_line(0, "T:" + str(temperature) + " H:" + str(humidity))
     lcd_line(1, "Light:" + str(light_level))
 
