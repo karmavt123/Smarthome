@@ -9,7 +9,7 @@ const HOME_NAME = 'Nha that (Yolo:Bit)';
 // Nguong CO CHU Y de rong: validateReading() nem loi neu gia tri ngoai [min,max]
 // va CA GOI TIN bi bo. Dat chat qua = mat du lieu that tu cam bien.
 const SENSORS = [
-  { type: 'temperature', unit: 'do C', min: -10, max: 60 },
+  { type: 'temperature', unit: '°C', min: -10, max: 60 },
   { type: 'humidity', unit: '%', min: 0, max: 100 },
   { type: 'light', unit: 'lux', min: 0, max: 10000 },
 ];
@@ -48,7 +48,7 @@ async function main() {
     created[code] = device;
   }
 
-  for (const s of SENSORS) {
+    for (const s of SENSORS) {
     const existing = await prisma.sensors.findFirst({
       where: { device_id: created['yolobit-sensor'].id, sensor_type: s.type },
     });
@@ -62,6 +62,10 @@ async function main() {
           max_value: s.max,
         },
       });
+    } else if (existing.unit !== s.unit) {
+      // Tu va lai don vi neu SENSORS o tren da doi (vd 'do C' -> '°C')
+      // sau khi sensor da duoc tao tu lan chay truoc.
+      await prisma.sensors.update({ where: { id: existing.id }, data: { unit: s.unit } });
     }
   }
 

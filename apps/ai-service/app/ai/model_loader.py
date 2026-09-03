@@ -35,7 +35,16 @@ def load_models(model_dir: Path) -> None:
 
     liveness_path = model_dir / LIVENESS_MODEL_FILENAME
     if liveness_path.exists():
-        _liveness_session = onnxruntime.InferenceSession(str(liveness_path), providers=["CPUExecutionProvider"])
+        try:
+            _liveness_session = onnxruntime.InferenceSession(
+                str(liveness_path), providers=["CPUExecutionProvider"]
+            )
+        except Exception:
+            logger.exception(
+                "Failed to load liveness model at %s — treating as unavailable instead of crashing.",
+                liveness_path,
+            )
+            _liveness_session = None
     else:
         logger.warning(
             "Liveness model not found at %s — /api/face-id/verify will fail until it is provided.",

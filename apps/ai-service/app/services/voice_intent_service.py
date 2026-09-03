@@ -16,7 +16,7 @@ from app.ai.model_loader import get_embedding_model
 # Embedding model gan nhu mu voi phu dinh: "khoan hay tat quat" ra fan/turn_off
 # voi confidence 0.92 (do ngay 22/08). Chan bang luat truoc khi goi model.
 NEGATION = re.compile(
-    r"(đừng|khoan|khỏi cần|không cần|chưa cần|thôi khỏi|đâu cần)",
+    r"(đừng|khoan|khỏi cần|không cần|chưa cần|thôi khỏi|đâu cần|\bkhông\b)",
     re.IGNORECASE,
 )
 
@@ -98,12 +98,11 @@ def _seed_index() -> tuple[list[tuple[str, str]], np.ndarray]:
     return _seed_labels, _seed_vectors
 
 
-def classify_intent(text: str, threshold: float) -> dict | None:
-    """Returns {deviceType, action, confidence} or None if below threshold (caller returns 422)."""
-    if NEGATION.search(text):
-        return None
+def _score_intents(text: str) -> dict[tuple[str, str], float]:
+    """Best cosine similarity per (deviceType, action) label, including NONE_LABEL.
+    Tach rieng de tools/measure_voice.py doc duoc diem that, khong bi classify_intent
+    nuot mat khi tra ve None."""
     labels, seed_vectors = _seed_index()
-
     query_vector = _l2_normalize(np.array(list(get_embedding_model().embed([text.lower()]))))[0]
     similarities = seed_vectors @ query_vector
 
@@ -111,7 +110,15 @@ def classify_intent(text: str, threshold: float) -> dict | None:
     for label, score in zip(labels, similarities):
         if score > best_per_intent.get(label, -1.0):
             best_per_intent[label] = float(score)
+    return best_per_intent
 
+
+def classify_intent(text: str, threshold: float) -> dict | None:
+    """Returns {deviceType, action, confidence} or None if below threshold (caller returns 422)."""
+    if NEGATION.search(text):
+        return None
+
+    best_per_intent = _score_intents(text)
     (device_type, action), confidence = max(best_per_intent.items(), key=lambda item: item[1])
 
     if confidence < threshold:

@@ -2,11 +2,11 @@
 
   docker compose exec ai-service python tools/measure_voice.py
 """
-import sys, glob, os
+import sys
 sys.path.insert(0, "/app")
 from config import Config
 from app.ai.model_loader import load_models
-from app.services.voice_intent_service import classify_intent
+from app.services.voice_intent_service import classify_intent, _score_intents, NONE_LABEL, NEGATION
 
 load_models(Config.MODEL_DIR)
 
@@ -20,29 +20,32 @@ KHONG_PHAI_LENH = [
     "hôm nay trời đẹp quá", "mấy giờ rồi", "nhiệt độ phòng bao nhiêu",
     "tôi đói bụng quá", "gọi cho mẹ", "alo alo", "ừ đúng rồi đó",
 ]
-PHU_DINH = ["đừng bật đèn", "khoan hãy tắt quạt", "không cần mở cửa đâu"]
+PHU_DINH = [
+    "đừng bật đèn", "khoan hãy tắt quạt", "không cần mở cửa đâu",
+    "không bật đèn", "không tắt quạt",
+]
 
-def run(title, phrases):
+def run(title, phrases, show_regex=False):
     print(f"\n=== {title} ===")
-    out = []
+    out_real = []
     for t in phrases:
-        r = classify_intent(t, 0.0)
-        if r is None:
-            print(f"  ------  TU CHOI          {t}")
-            out.append(0.0)
-            continue
-        out.append(r["confidence"])
-        print(f"  {r['confidence']:.4f}  {r['deviceType']:>5}/{r['action']:<9}  {t}")
-    return out
+        scores = _score_intents(t)
+        best_real_label, best_real_conf = max(
+            ((k, v) for k, v in scores.items() if k != NONE_LABEL),
+            key=lambda kv: kv[1],
+        )
+        r = classify_intent(t, Config.VOICE_INTENT_THRESHOLD)
+        verdict = "CHAP NHAN" if r else "TU CHOI  "
+        tag = f"  regex_hit={bool(NEGATION.search(t))}" if show_regex else ""
+        print(f"  {verdict}  best_real={best_real_label[0]}/{best_real_label[1]}:{best_real_conf:.4f}{tag}  {t}")
+        out_real.append(best_real_conf)
+    return out_real
 
 a = run("LENH THAT (muon confidence CAO)", LENH)
-b = run("KHONG PHAI LENH (muon THAP)", KHONG_PHAI_LENH)
-c = run("PHU DINH (bay - xem no doan gi)", PHU_DINH)
+b = run("KHONG PHAI LENH (muon confidence-voi-y-dinh-that THAP)", KHONG_PHAI_LENH)
+c = run("PHU DINH (bay - phai bi TU CHOI het, VA phai regex_hit=True)", PHU_DINH, show_regex=True)
 
-print(f"\nLenh that THAP nhat   : {min(a):.4f}")
-print(f"Khong phai lenh CAO nhat: {max(b):.4f}")
-if max(b) < min(a):
-    print(f"*** TACH ROI. VOICE_INTENT_THRESHOLD de nghi = {(min(a) + max(b)) / 2:.2f} ***")
-else:
-    print("*** CHONG NHAU — them cau mau vao SEED_PHRASES hoac chap nhan bo sot. ***")
-print(f"\nPhu dinh cao nhat: {max(c):.4f}  <- cao hon nguong = lo hong, can chan bang regex")
+print(f"\nNguong dang dung: {Config.VOICE_INTENT_THRESHOLD}")
+print(f"Lenh that THAP nhat: {min(a):.4f}")
+print(f"Khong-phai-lenh CAO nhat: {max(b):.4f}")
+print(f"Phu dinh CAO nhat: {max(c):.4f}")

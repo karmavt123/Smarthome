@@ -21,3 +21,5 @@ models/
 htmlcov/
 
 *.log
+
+spoof/
