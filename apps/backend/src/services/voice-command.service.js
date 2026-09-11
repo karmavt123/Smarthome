@@ -101,6 +101,39 @@ function namesNonDevice(normalizedText) {
   });
 }
 
+// Cùng một căn phòng, hai ngôn ngữ. Thiếu bảng này thì "bật đèn phòng khách" bị TỪ CHỐI khi
+// bóng đèn duy nhất trong nhà tên là "Living Room Light": 'khach' và 'living' là hai token
+// không liên quan gì nhau, nên lớp bảo vệ đọc thành "người dùng gọi tên một nơi chốn nhà này
+// không có". Seed của dự án đặt tên tiếng Việt nên lỗi không lộ trên dữ liệu thật — nó chỉ lộ
+// ở tests/, nơi thiết bị đặt tên tiếng Anh mà câu lệnh vẫn là tiếng Việt, đúng cái tình huống
+// một người Việt dùng app có sẵn thiết bị tên tiếng Anh.
+const ROOM_CONCEPTS = {
+  khach: 'living', living: 'living',
+  ngu: 'bed', bed: 'bed', bedroom: 'bed',
+  bep: 'kitchen', kitchen: 'kitchen',
+  tam: 'bath', bath: 'bath', bathroom: 'bath', wc: 'bath', toilet: 'bath',
+  restroom: 'bath', sinh: 'bath',
+  an: 'dining', dining: 'dining',
+  hoc: 'study', study: 'study', viec: 'study', office: 'study',
+  kho: 'storage', pantry: 'storage', closet: 'storage',
+  gara: 'garage', garage: 'garage',
+  vuon: 'garden', garden: 'garden',
+  san: 'yard', yard: 'yard', patio: 'yard',
+  giat: 'laundry', laundry: 'laundry',
+  gac: 'attic', attic: 'attic',
+  tret: 'ground', basement: 'basement',
+  hall: 'hall', hallway: 'hall', lobby: 'hall', corridor: 'hall',
+  balcony: 'balcony', porch: 'balcony',
+  tho: 'worship',
+  chinh: 'main', main: 'main',
+  phu: 'secondary',
+};
+
+// Quy một từ về khái niệm phòng của nó; từ nào không phải tên phòng thì giữ nguyên.
+function conceptOf(word) {
+  return ROOM_CONCEPTS[word] || word;
+}
+
 // Tokens of the utterance, as a set. Word-level matching, not substring: `includes`
 // made "room" match inside "bedroom", so "switch on bedroom light" scored 1 for BOTH
 // "Living Room Light" and "Bedroom Light" and came out ambiguous.
@@ -117,9 +150,11 @@ function nameWords(name) {
 // people name several identical devices, and dropping "1"/"2" made every such command
 // resolve to whichever device happened to come first.
 function scoreDeviceName(deviceName, commandText) {
-  const spoken = wordsOf(commandText);
+  // So khớp theo KHÁI NIỆM phòng, không theo mặt chữ: "Living Room Light" phải ăn điểm với
+  // "bật đèn phòng khách" y như "Đèn phòng khách" ăn điểm với "turn on the living room light".
+  const spoken = new Set([...wordsOf(commandText)].map(conceptOf));
   return nameWords(deviceName)
-    .filter((word) => !GENERIC_WORDS.has(word) && spoken.has(word))
+    .filter((word) => !GENERIC_WORDS.has(word) && spoken.has(conceptOf(word)))
     .length;
 }
 
@@ -262,9 +297,10 @@ function selectDevice(devices, normalizedText, vocabulary = []) {
   // belonging to neither. Guessing here is exactly the original bug.
   if (!outright) return null;
 
-  // The user named a place, and the best-matching device is not in it.
-  const winnerWords = new Set(nameWords(ranked[0].candidate.name));
-  if (qualifiers.some((word) => !winnerWords.has(word))) return null;
+  // The user named a place, and the best-matching device is not in it. So sánh ở mức khái
+  // niệm để "phòng khách" và "Living Room" được coi là cùng một nơi.
+  const winnerWords = new Set(nameWords(ranked[0].candidate.name).map(conceptOf));
+  if (qualifiers.some((word) => !winnerWords.has(conceptOf(word)))) return null;
 
   return ranked[0].candidate;
 }

@@ -31,6 +31,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Phai xoa nha TRUOC. fk_device_commands_user la ON DELETE RESTRICT, ma bo test nay co gui
+  // lenh dieu khien, nen xoa thang user se dinh loi khoa ngoai va lam ca suite bao "failed to
+  // run" — che mat ket qua that cua cac test ben trong. Xoa nha se cascade devices ->
+  // device_commands (fk_device_commands_device la CASCADE), don sach duong cho user.
+  await prisma.homes.deleteMany({ where: { user_id: userId } });
   await prisma.users.delete({ where: { id: userId } });
   await prisma.$disconnect();
 });

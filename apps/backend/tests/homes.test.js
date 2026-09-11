@@ -85,7 +85,11 @@ describe('homes routes', () => {
       .delete(`/api/homes/${homeId}`)
       .set('Authorization', `Bearer ${accessToken}`);
 
-    expect(res.status).toBe(204);
+    // DELETE /api/homes/{id} tra ve 200 kem chinh ngoi nha vua xoa — dung nhu homes.routes.js
+    // mo ta ("200: Home deleted, returns the deleted home") va dung nhu homes.controller.js
+    // lam. Test nay tu truoc gio ky vong 204 va chua bao gio duoc chay nen khong ai thay.
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(homeId);
 
     const getRes = await request(app)
       .get('/api/homes')
