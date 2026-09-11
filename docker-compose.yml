@@ -49,6 +49,10 @@ services:
       MQTT_PASSWORD: ${MQTT_PASSWORD}
       ADAFRUIT_IO_USERNAME: ${ADAFRUIT_IO_USERNAME}
       ADAFRUIT_IO_KEY: ${ADAFRUIT_IO_KEY}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
+      UPLOAD_URL_TTL_MS: ${UPLOAD_URL_TTL_MS}
+      REPORT_TZ_OFFSET: ${REPORT_TZ_OFFSET}
     ports:
       - "${BACKEND_PORT}:3000"
     volumes:
@@ -68,8 +72,13 @@ services:
       LIVENESS_THRESHOLD: ${LIVENESS_THRESHOLD}
       VOICE_INTENT_THRESHOLD: ${VOICE_INTENT_THRESHOLD}
       MAX_CONTENT_LENGTH: ${MAX_CONTENT_LENGTH}
-    ports:
-      - "5000:5000"
+      AI_ALLOWED_ORIGINS: ${AI_ALLOWED_ORIGINS}
+    # No host port on purpose. Only `backend` calls this service, over the compose
+    # network at http://ai-service:5000 (AI_SERVICE_URL). Publishing 5000 put an
+    # inference service holding face embeddings on the LAN for no benefit.
+    # Uncomment to poke at it directly while debugging:
+    # ports:
+    #   - "5000:5000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
       interval: 15s

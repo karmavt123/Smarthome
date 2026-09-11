@@ -21,7 +21,13 @@ def health() -> Response:
 @voice_bp.post("/intent")
 @require_api_key
 def intent() -> Response:
-    body = request.get_json(silent=True) or {}
+    # get_json parses ANY valid JSON, not just an object: a body of `[1,2]`, `"hi"` or
+    # `5` used to reach .get() and blow up with AttributeError -> 500 + a stack trace in
+    # the logs, for what is plainly a bad request.
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        raise AppError(400, "request body must be a JSON object")
+
     text = body.get("text")
     if not isinstance(text, str) or not text.strip():
         raise AppError(400, "'text' is required")

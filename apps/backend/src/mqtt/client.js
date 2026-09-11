@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const mqtt = require('mqtt');
 const prisma = require('../config/prisma');
 const { storeReadings } = require('../services/telemetry.service');
@@ -23,9 +24,12 @@ function topicFor(channel) {
   return `${process.env.MQTT_USERNAME}/feeds/${channel}`;
 }
 
-// "khoa123/feeds/V1" -> "V1"
+// "khoa123/feeds/V1" -> "V1". Uppercased because brokers normalise feed keys to lower
+// case (mqtt.service.js:57 documents Adafruit doing exactly that), and INBOUND is keyed
+// on "V1". A lower-cased channel silently missed every mapping and dropped the telemetry
+// with no log line at all.
 function channelFromTopic(topic) {
-  return topic.split('/').pop();
+  return String(topic.split('/').pop()).toUpperCase();
 }
 
 // storeReadings chi danh dau ban ghi `sensor` la online. Ba ban ghi con lai cua
@@ -67,7 +71,15 @@ async function handleReading(channel, raw) {
   }
 
   // messageId phai DUY NHAT - trung se bi coi la ban sao va bo qua IM LANG.
-  await storeReadings(device, [{ sensor, rawValue: value }], new Date(), `mqtt:${channel}:${Date.now()}`);
+  // randomUUID thay vi Date.now(): hai ban tin cung kenh trong cung mot mili-giay se
+  // dung unique (device_id, message_id) va ban thu hai bi bo im lang.
+  // mqtt.service.js da dung dung cach nay.
+  await storeReadings(
+    device,
+    [{ sensor, rawValue: value }],
+    new Date(),
+    `mqtt:${channel}:${crypto.randomUUID()}`,
+  );
   await markBoardOnline();
 
   console.log(`[mqtt] ${channel} = ${value} ${sensor.unit}`);

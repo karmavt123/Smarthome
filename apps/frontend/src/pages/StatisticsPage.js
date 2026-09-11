@@ -13,13 +13,27 @@ import AlertsSeverityCard from '~/components/AlertsSeverityCard';
 
 const TREND_DAYS = 7;
 const SENSOR_TYPES = ['temperature', 'humidity', 'light'];
-const CONTROL_METHODS = ['app', 'voice', 'face', 'automatic', 'manual'];
+// Phai khop voi enum device_actions.control_method cua backend. 'password' tung bi bo
+// sot o day, va vi dong 72 chi cong don khi method nam trong danh sach nay nen moi lenh
+// mo cua bang ma PIN bi am tham loai khoi bieu do thay vi hien sai — khong co dau hieu gi.
+const CONTROL_METHODS = ['app', 'voice', 'face', 'password', 'automatic', 'manual'];
 
-// Group by UTC calendar day (not local time) so the bucket key is a plain
-// string comparison — reformatting it as dd/mm via string split avoids the
-// classic "new Date('YYYY-MM-DD') shifts a day in negative-UTC timezones" bug.
+// The daily-average endpoint already returns a plain "YYYY-MM-DD" bucketed in the report
+// timezone, so that one is used as-is.
 function dayKey(isoDate) {
   return isoDate.slice(0, 10);
+}
+
+// Device actions arrive as full UTC timestamps and are bucketed here, so they have to be
+// converted to the viewer's calendar day first — otherwise anything logged between
+// midnight and 07:00 in Vietnam landed on the previous day's column, disagreeing with the
+// sensor chart right next to it. Kept as YYYY-MM-DD so the key still sorts as a string.
+function localDayKey(isoTimestamp) {
+  const date = new Date(isoTimestamp);
+  if (Number.isNaN(date.getTime())) return String(isoTimestamp).slice(0, 10);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 function formatDayLabel(key) {
@@ -27,20 +41,18 @@ function formatDayLabel(key) {
   return `${day}/${month}`;
 }
 
-function buildSensorTrend(readingsBySensorType) {
+// Input is already one row per day per sensor (GET /sensors/:id/readings/daily), so this
+// only pivots the three series onto a shared day axis. The averaging used to happen here
+// over raw readings, which silently covered only whatever fit in the 500-row cap — with
+// a reading every few seconds that was a couple of hours, not the 7 days on the label.
+function buildSensorTrend(dailyBySensorType) {
   const byDay = {};
 
   SENSOR_TYPES.forEach((sensorType) => {
-    const sums = {};
-    (readingsBySensorType[sensorType] || []).forEach(({ value, capturedAt }) => {
-      const key = dayKey(capturedAt);
-      if (!sums[key]) sums[key] = { total: 0, count: 0 };
-      sums[key].total += value;
-      sums[key].count += 1;
-    });
-    Object.entries(sums).forEach(([key, { total, count }]) => {
+    (dailyBySensorType[sensorType] || []).forEach(({ day, avg }) => {
+      const key = dayKey(day);
       if (!byDay[key]) byDay[key] = { key };
-      byDay[key][sensorType] = Number((total / count).toFixed(1));
+      byDay[key][sensorType] = Number(Number(avg).toFixed(1));
     });
   });
 
@@ -53,7 +65,7 @@ function buildDeviceActivity(actions) {
   const byDay = {};
 
   actions.forEach(({ createdAt, controlMethod }) => {
-    const key = dayKey(createdAt);
+    const key = localDayKey(createdAt);
     if (!byDay[key]) {
       byDay[key] = { key };
       CONTROL_METHODS.forEach((method) => {
@@ -94,21 +106,25 @@ function StatisticsPage() {
       const from = new Date(now.getTime() - TREND_DAYS * 24 * 60 * 60 * 1000).toISOString();
       const to = now.toISOString();
 
-      const readingsEntries = await Promise.all(
+      const dailyEntries = await Promise.all(
         SENSOR_TYPES.map(async (sensorType) => {
           const sensorId = environmentData?.[sensorType]?.sensorId;
           if (!sensorId) return [sensorType, []];
-          const { readings } = await telemetryService.getSensorReadings(sensorId, { from, to, limit: 500 });
-          return [sensorType, readings];
+          const { days } = await telemetryService.getDailyAverages(sensorId, { from, to });
+          return [sensorType, days];
         })
       );
 
+      // from/to are passed through now that the backend filters on them. Before this,
+      // both endpoints just returned the N newest rows with no date bound at all, so the
+      // cards saying "7 ngày gần nhất" were really showing "the last 50 commands" and
+      // "the last 200 alerts" — on a busy home that could be a couple of hours.
       const [actions, alertsRes] = await Promise.all([
-        deviceActionService.list({ home_id: currentHomeId }),
-        alertService.getAll(currentHomeId, { limit: 1000 }),
+        deviceActionService.list({ home_id: currentHomeId, from, to, limit: 200 }),
+        alertService.getAll(currentHomeId, { from, to, limit: 200 }),
       ]);
 
-      setSensorTrend(buildSensorTrend(Object.fromEntries(readingsEntries)));
+      setSensorTrend(buildSensorTrend(Object.fromEntries(dailyEntries)));
       setDeviceActivity(buildDeviceActivity(actions));
       setAlerts(alertsRes.data);
       setAlertsSeverity(buildAlertsSeverity(alertsRes.data));

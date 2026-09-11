@@ -5,7 +5,16 @@
 require('dotenv').config();
 
 // Without any of these the app cannot function at all.
-const REQUIRED = ['DATABASE_URL', 'JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'];
+// AI_SERVICE_* included on purpose: without them Face ID and voice commands both fail at
+// runtime with a 503, which is exactly the "boots fine, breaks on first request" mode this
+// check exists to prevent.
+const REQUIRED = [
+  'DATABASE_URL',
+  'JWT_ACCESS_SECRET',
+  'JWT_REFRESH_SECRET',
+  'AI_SERVICE_URL',
+  'AI_SERVICE_API_KEY',
+];
 
 // A guessable secret is no better than a missing one. 32 chars is the floor;
 // `crypto.randomBytes(32).toString('hex')` gives 64.

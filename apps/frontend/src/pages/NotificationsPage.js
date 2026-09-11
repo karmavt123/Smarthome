@@ -1,78 +1,95 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCheckDouble } from '@fortawesome/free-solid-svg-icons';
+import { faCheckDouble, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import NotificationsList from '~/components/NotificationsList';
-
-const INITIAL_NOTIFICATIONS = [
-  {
-    id: 1,
-    title: 'Truy cập trái phép được phát hiện',
-    message: 'Phát hiện nỗ lực nhập sai mật khẩu 3 lần tại Cửa chính.',
-    channel: 'push',
-    status: 'sent',
-    time: '14:32, 02 Th10',
-  },
-  {
-    id: 2,
-    title: 'Khóa cửa trước đã mở bằng vân tay',
-    message: 'Anh Quân đã mở cửa trước bằng vân tay.',
-    channel: 'in_app',
-    status: 'read',
-    time: '14:55, 02 Th10',
-  },
-  {
-    id: 3,
-    title: 'Hệ thống báo động đã được kích hoạt',
-    message: 'Chế độ báo động tự động bật lúc rời khỏi nhà.',
-    channel: 'telegram',
-    status: 'sent',
-    time: '12:10, 02 Th10',
-  },
-  {
-    id: 4,
-    title: 'Nhiệt độ Phòng khách vượt ngưỡng',
-    message: 'Nhiệt độ đo được 35.2°C, vượt ngưỡng cảnh báo 35°C.',
-    channel: 'email',
-    status: 'failed',
-    time: '09:20, 02 Th10',
-  },
-  {
-    id: 5,
-    title: 'Thiết bị mất kết nối',
-    message: 'Cảm biến nhiệt độ - Phòng khách đã mất kết nối.',
-    channel: 'in_app',
-    status: 'pending',
-    time: '08:47, 02 Th10',
-  },
-  {
-    id: 6,
-    title: 'Chào mừng đến với Lumina Home Logic',
-    message: 'Tài khoản của bạn đã sẵn sàng. Hãy khám phá các tính năng của hệ thống.',
-    channel: 'email',
-    status: 'read',
-    time: '01 Th10',
-  },
-];
+import useHome from '~/hooks/useHome';
+import alertService from '~/services/alertService';
 
 const TABS = [
   { id: 'all', label: 'Tất cả' },
   { id: 'unread', label: 'Chưa đọc' },
 ];
 
+const PAGE_SIZE = 50;
+
+function formatTime(createdAt) {
+  if (!createdAt) return '';
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+  });
+}
+
 function NotificationsPage() {
-  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
+  const { currentHomeId } = useHome();
+  const [notifications, setNotifications] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
-  const unreadCount = notifications.filter((n) => n.status !== 'read').length;
+  const fetchNotifications = useCallback(async () => {
+    if (!currentHomeId) return;
+    setIsLoading(true);
+    try {
+      const res = await alertService.getAll(currentHomeId, { limit: PAGE_SIZE });
+      setNotifications(
+        res.data.map((alert) => ({
+          id: alert.id,
+          title: alert.title,
+          message: alert.message,
+          severity: alert.severity,
+          status: alert.status,
+          time: formatTime(alert.createdAt),
+        }))
+      );
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err?.message || 'Không thể tải thông báo.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentHomeId]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const unreadCount = notifications.filter((n) => n.status === 'unread').length;
   const visibleNotifications =
-    activeTab === 'unread' ? notifications.filter((n) => n.status !== 'read') : notifications;
+    activeTab === 'unread' ? notifications.filter((n) => n.status === 'unread') : notifications;
 
-  const markAsRead = (id) => {
+  const markAsRead = async (id) => {
+    const target = notifications.find((n) => n.id === id);
+    if (!target || target.status !== 'unread') return;
+
+    // Optimistic, then reconciled: a failed PATCH rolls the row back so the badge never
+    // claims something was read when the server still has it unread.
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, status: 'read' } : n)));
+    try {
+      await alertService.updateAlert(id, { status: 'read' });
+    } catch {
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, status: target.status } : n))
+      );
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, status: 'read' })));
+  const markAllAsRead = async () => {
+    const unread = notifications.filter((n) => n.status === 'unread');
+    if (unread.length === 0) return;
+
+    setNotifications((prev) =>
+      prev.map((n) => (n.status === 'unread' ? { ...n, status: 'read' } : n))
+    );
+    // The backend has no bulk endpoint, so this is one PATCH per alert. allSettled keeps
+    // one failure from hiding the rest; the refetch afterwards is what makes the list
+    // match the server either way.
+    await Promise.allSettled(unread.map((n) => alertService.updateAlert(n.id, { status: 'read' })));
+    fetchNotifications();
   };
 
   return (
@@ -90,7 +107,8 @@ function NotificationsPage() {
         <button
           type="button"
           onClick={markAllAsRead}
-          className="flex items-center gap-2 text-secondary text-body-md hover:underline"
+          disabled={unreadCount === 0}
+          className="flex items-center gap-2 text-secondary text-body-md hover:underline disabled:opacity-50 disabled:hover:no-underline"
         >
           <FontAwesomeIcon icon={faCheckDouble} className="w-3.5 h-3.5" />
           Đánh dấu tất cả đã đọc
@@ -114,8 +132,16 @@ function NotificationsPage() {
         ))}
       </div>
 
+      {loadError && <p className="text-body-md text-error mb-4">{loadError}</p>}
+
       <div className="bg-surface-container rounded-xl border border-outline-variant/30 px-5">
-        <NotificationsList notifications={visibleNotifications} onItemClick={markAsRead} />
+        {isLoading ? (
+          <div className="flex items-center justify-center py-10">
+            <FontAwesomeIcon icon={faSpinner} className="w-6 h-6 text-secondary animate-spin" />
+          </div>
+        ) : (
+          <NotificationsList notifications={visibleNotifications} onItemClick={markAsRead} />
+        )}
       </div>
     </div>
   );

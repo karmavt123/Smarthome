@@ -52,6 +52,17 @@ function UnlockFaceId({ doorDeviceId, onSuccess, onCancel, onSwitchToPin }) {
         // ai-service down — skip generic error, drop straight to PIN, doesn't
         // count toward the 3-strikes lock (backend never saw a real attempt).
         onSwitchToPin?.();
+      } else if (err?.status === 422) {
+        // ai-service now distinguishes "could not measure" from "looks fake" and returns
+        // 422 with an English message ("No face detected" / "Multiple faces detected").
+        // Map it here so the user sees Vietnamese, and so the wording says what to DO.
+        const detail = String(err?.message || '');
+        setMessage(
+          detail.includes('Multiple')
+            ? 'Có nhiều hơn một khuôn mặt trong khung hình. Chỉ để một người trước camera.'
+            : 'Không thấy khuôn mặt. Đưa mặt vào giữa khung hình, đủ sáng, rồi thử lại.'
+        );
+        start();
       } else {
         setMessage(err?.message || 'Không thể xác thực, thử lại sau.');
         start();
@@ -115,7 +126,8 @@ function UnlockFaceId({ doorDeviceId, onSuccess, onCancel, onSwitchToPin }) {
         </div>
         <h2 className="text-body-lg font-semibold text-on-surface mt-3">Face ID đang bị khóa</h2>
         <p className="text-body-md text-outline mt-2">
-          Do sai quá nhiều lần, Face ID tạm khóa tới {formatTime(lockedUntil)}. Dùng mã PIN để mở cửa.
+          Do sai quá nhiều lần, Face ID tạm khóa tới {formatTime(lockedUntil)}. Dùng mã PIN để mở
+          cửa.
         </p>
 
         {onSwitchToPin && (
@@ -127,7 +139,11 @@ function UnlockFaceId({ doorDeviceId, onSuccess, onCancel, onSwitchToPin }) {
             Dùng mã PIN
           </button>
         )}
-        <button type="button" onClick={onCancel} className="text-body-md text-on-surface-variant underline mt-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-body-md text-on-surface-variant underline mt-3"
+        >
           Hủy
         </button>
       </div>
@@ -150,10 +166,15 @@ function UnlockFaceId({ doorDeviceId, onSuccess, onCancel, onSwitchToPin }) {
 
       <div className="relative w-56 aspect-video mt-6 rounded-lg overflow-hidden bg-surface-container-low">
         <video ref={videoRef} muted playsInline className="w-full h-full object-cover" />
-        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+        />
       </div>
 
-      {(cameraError || modelError) && <p className="text-body-md text-error mt-3">{cameraError || modelError}</p>}
+      {(cameraError || modelError) && (
+        <p className="text-body-md text-error mt-3">{cameraError || modelError}</p>
+      )}
       {message && <p className="text-body-md text-error mt-3">{message}</p>}
 
       <p className="text-label-md text-tertiary font-medium mt-3">
@@ -175,12 +196,20 @@ function UnlockFaceId({ doorDeviceId, onSuccess, onCancel, onSwitchToPin }) {
       </button>
 
       {onSwitchToPin && (
-        <button type="button" onClick={onSwitchToPin} className="text-body-md text-secondary underline mt-3">
+        <button
+          type="button"
+          onClick={onSwitchToPin}
+          className="text-body-md text-secondary underline mt-3"
+        >
           Dùng mã PIN thay thế
         </button>
       )}
 
-      <button type="button" onClick={onCancel} className="text-body-md text-on-surface-variant underline mt-3">
+      <button
+        type="button"
+        onClick={onCancel}
+        className="text-body-md text-on-surface-variant underline mt-3"
+      >
         Hủy
       </button>
     </div>

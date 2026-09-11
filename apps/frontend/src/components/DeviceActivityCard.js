@@ -12,6 +12,10 @@ const METHODS = [
   { key: 'app', name: 'App', color: '#7bd0ff' },
   { key: 'voice', name: 'Giọng nói', color: '#4edea3' },
   { key: 'face', name: 'Face ID', color: '#bec6e0' },
+  // Lenh mo cua bang ma PIN co control_method 'password'. Thieu dong nay thi moi lan mo
+  // cua bang PIN bi loai khoi bieu do — mot trong hai phuong thuc bao mat cua de tai
+  // khong bao gio xuat hien trong thong ke.
+  { key: 'password', name: 'Mã PIN', color: '#f2b8b5' },
   { key: 'automatic', name: 'Tự động', color: '#565e74' },
   { key: 'manual', name: 'Thủ công', color: '#909097' },
 ];

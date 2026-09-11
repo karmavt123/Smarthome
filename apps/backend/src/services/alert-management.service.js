@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { requireHome, requireSensor } = require('./ownership.service');
+const { buildDateRange } = require('../utils/date-range');
 
 const OPERATOR_MAP = {
   '>': 'gt',
@@ -113,10 +114,12 @@ async function listAlerts(userId, query = {}) {
   const home = await resolveHome(userId, query.home_id);
   const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
   const page = Math.max(Number(query.page) || 1, 1);
+  const createdAt = buildDateRange(query);
   const where = {
     home_id: home.id,
     ...(query.status ? { status: query.status } : {}),
     ...(query.severity ? { severity: query.severity } : {}),
+    ...(createdAt ? { created_at: createdAt } : {}),
   };
 
   const [data, total] = await Promise.all([

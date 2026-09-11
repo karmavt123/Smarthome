@@ -2,6 +2,9 @@ import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEnvelope, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 
+// There is no password-reset endpoint on the backend yet, so this form cannot do
+// anything. It used to swallow the submit silently, which reads to the user as "the
+// email was sent". Better to say so plainly than to fake success.
 function ForgotPasswordPage() {
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -11,7 +14,8 @@ function ForgotPasswordPage() {
     <>
       <div className="bg-surface-container rounded-xl border border-outline-variant/30 p-6">
         <p className="text-body-md text-on-surface-variant mb-5">
-          Nhập email của bạn, chúng tôi sẽ gửi liên kết để đặt lại mật khẩu.
+          Tính năng đặt lại mật khẩu chưa được mở. Vui lòng liên hệ quản trị viên để được cấp lại
+          mật khẩu.
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -27,13 +31,16 @@ function ForgotPasswordPage() {
               id="email"
               type="email"
               placeholder="name@example.com"
-              className="w-full rounded-lg bg-surface-container-low border border-outline-variant/40 px-4 py-3 text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:border-secondary"
+              disabled
+              className="w-full rounded-lg bg-surface-container-low border border-outline-variant/40 px-4 py-3 text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:border-secondary disabled:opacity-50"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full rounded-lg bg-secondary text-on-secondary font-medium py-3 text-body-md hover:opacity-90 transition-opacity"
+            disabled
+            title="Chức năng đang được phát triển"
+            className="w-full rounded-lg bg-secondary text-on-secondary font-medium py-3 text-body-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:hover:opacity-50"
           >
             Gửi liên kết đặt lại
           </button>

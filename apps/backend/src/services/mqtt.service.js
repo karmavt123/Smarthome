@@ -130,22 +130,28 @@ async function handleDeviceState(deviceCode) {
 }
 
 async function handleSensorReading(deviceCode, sensorType, rawPayload) {
-  console.log("deviceCode", deviceCode);
-  console.log("rawPayload", rawPayload);
-  console.log("sensorType", sensorType);
+  // One compact line per reading instead of five object dumps: this runs on every
+  // board publish (every few seconds), and dumping whole Prisma rows buried the
+  // lines that actually matter when tailing `docker compose logs`.
+  console.log(`MQTT: reading ${deviceCode}/${sensorType} = ${rawPayload}`);
+
   const device = await prisma.devices.findFirst({
     where: { device_code: deviceCode },
   });
-  console.log("device", device);
-  if (!device) return;
+  if (!device) {
+    console.warn(`MQTT: no device with code ${deviceCode}, reading dropped`);
+    return;
+  }
 
   const sensor = await prisma.sensors.findUnique({
     where: {
       device_id_sensor_type: { device_id: device.id, sensor_type: sensorType },
     },
   });
-  console.log("sensor", sensor);
-  if (!sensor) return;
+  if (!sensor) {
+    console.warn(`MQTT: ${deviceCode} has no ${sensorType} sensor, reading dropped`);
+    return;
+  }
 
   const { storeReadings } = require("./telemetry.service");
   await storeReadings(
@@ -228,14 +234,9 @@ function disconnect() {
 function publishCommand(device, command) {
   if (!client || !aioUsername) return;
   const payload = commandPayload(command.action, command.value);
-  console.log("device", device);
-  console.log("client", client.publish);
-  console.log("payload", payload);
-  const result = client.publish(
-    commandTopic(aioUsername, device.device_code),
-    payload,
-  );
-  console.log("result", result);
+  const topic = commandTopic(aioUsername, device.device_code);
+  client.publish(topic, payload);
+  console.log(`MQTT: published ${payload} -> ${topic}`);
 }
 
 module.exports = {

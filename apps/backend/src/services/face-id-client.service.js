@@ -2,7 +2,12 @@ const axios = require('axios');
 const FormData = require('form-data');
 const HttpError = require('../utils/http-error');
 
-const DEFAULT_MATCH_THRESHOLD = 0.6;
+// Nguong mac dinh phai la gia tri DA HIEU CHINH cho model dang dung (buffalo_l/ArcFace),
+// khong phai 0.6 — do la mac dinh cu cua face-api.js, con sot lai tu truoc khi chuyen sang
+// InsightFace. Khoang cach do duoc tren bo anh that: cung nguoi 0.411-1.195, khac nguoi
+// 1.281-1.462. Voi nguong 0.6 thi gan nhu MOI lan xac thuc dung deu bi tu choi, va loi do
+// chi xuat hien khi FACE_MATCH_THRESHOLD khong duoc set — tuc la im lang tren may sach.
+const DEFAULT_MATCH_THRESHOLD = 1.24;
 
 function baseUrl() {
   return process.env.AI_SERVICE_URL;

@@ -210,14 +210,29 @@ async function seedHome(userId, { name, address, rooms, alertsPerSeverity }) {
 }
 
 async function main() {
-  const password_hash = await bcrypt.hash('password', 10);
+  // The seeded admin owns the real board, including the door. With SEED_ON_BOOT=true
+  // the account is recreated on every start, so a hard-coded password meant anyone who
+  // could reach the API could sign in and open the door — bypassing Face ID and PIN
+  // entirely. Overridable via env; the old value stays the default so existing local
+  // setups and the demo notes keep working.
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@admin.com';
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'password';
+
+  if (adminPassword === 'password') {
+    console.warn(
+      '⚠  Seed admin is using the default password. Set SEED_ADMIN_PASSWORD in .env ' +
+        'before exposing this backend to anything but localhost.',
+    );
+  }
+
+  const password_hash = await bcrypt.hash(adminPassword, 10);
 
   const admin = await prisma.users.upsert({
-    where: { email: 'admin@admin.com' },
+    where: { email: adminEmail },
     update: {},
     create: {
       full_name: 'Admin',
-      email: 'admin@admin.com',
+      email: adminEmail,
       password_hash,
       role: 'admin',
     },

@@ -135,7 +135,7 @@ Table alerts {
   alert_type    alerts_alert_type
   severity      alerts_severity [default: 'warning']
   title         varchar(150)
-  message       text [note: 'door alerts tag [door:<id>] inline — no device_id column']
+  message       text [note: 'door alerts tag [door:<id>:<accessMethod>] inline — no device_id column']
   status        alerts_status [default: 'unread']
   created_at    timestamp [default: `now()`]
   updated_at    timestamp
@@ -179,6 +179,7 @@ Table face_profiles {
   image_url      text
   face_embedding text [note: 'JSON-stringified 512-d ArcFace vector, nullable']
   is_active      boolean [default: true]
+  anchor_log_id  bigint [note: 'newest door_access_logs id when this PIN was created; accessLockStatus only counts failures above it']
   created_at     timestamp [default: `now()`]
   updated_at     timestamp
 }

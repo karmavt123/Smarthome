@@ -11,9 +11,18 @@ async function history(req, res) {
   res.json(serialize(result));
 }
 
+async function dailyAverages(req, res) {
+  const result = await telemetryService.getDailySensorAverages(
+    req.user.sub,
+    req.params.id,
+    req.query
+  );
+  res.json(serialize(result));
+}
+
 async function heartbeat(req, res) {
   const result = await telemetryService.recordHeartbeat(req.user.sub, req.params.id);
   res.json(serialize(result));
 }
 
-module.exports = { ingest, history, heartbeat };
+module.exports = { ingest, history, dailyAverages, heartbeat };

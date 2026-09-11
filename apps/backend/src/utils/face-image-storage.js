@@ -2,6 +2,10 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+const {
+  buildSignedUploadUrl,
+} = require('../middlewares/signed-upload.middleware');
+
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads', 'faces');
 const EXT_BY_MIME = { 'image/jpeg': '.jpg', 'image/png': '.png' };
 
@@ -18,7 +22,9 @@ function deleteFaceImage(filename) {
 }
 
 function faceImageUrl(req, filename) {
-  return `${req.protocol}://${req.get('host')}/uploads/faces/${filename}`;
+  // Signed + expiring: /uploads is no longer world-readable (see
+  // middlewares/signed-upload.middleware.js).
+  return buildSignedUploadUrl(req, `faces/${filename}`);
 }
 
 module.exports = { saveFaceImage, deleteFaceImage, faceImageUrl };

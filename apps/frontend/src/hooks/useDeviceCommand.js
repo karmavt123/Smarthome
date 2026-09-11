@@ -26,36 +26,73 @@ function useDeviceCommand() {
   const debounceTimersRef = useRef({});
   const pollTimersRef = useRef({});
   const onSettledRef = useRef({});
+  // Pending debounced dispatches, so unmount can flush instead of dropping them.
+  const pendingDispatchRef = useRef({});
+  // Unmount cleanup runs once ([] deps) and must not capture a stale closure of these.
+  const cleanupRef = useRef({ clearOptimistic: null, dispatch: null });
 
   useEffect(() => {
     const debounceTimers = debounceTimersRef.current;
     const pollTimers = pollTimersRef.current;
+    const pendingDispatch = pendingDispatchRef.current;
+    // Copy the container object (never reassigned, only its fields are updated) so the
+    // cleanup closes over a stable reference instead of reading .current at teardown.
+    const cleanup = cleanupRef.current;
+
     return () => {
-      Object.values(debounceTimers).forEach(clearTimeout);
-      Object.values(pollTimers).forEach(clearTimeout);
+      // The timers below live in refs owned by THIS mount, but `optimisticActions` is a
+      // global jotai atom that outlives it. Clearing the timers without settling left
+      // the optimistic value in the atom forever: navigate away mid-toggle and the next
+      // page kept showing a light as off while it was still physically on, because
+      // isDeviceOn() prefers the optimistic value over device.status and nothing was
+      // ever going to clear it.
+
+      // 1. A debounce that has not fired yet is a click the user already made — send it,
+      //    so the command is not silently lost and the poll it starts will settle
+      //    (and therefore clear) the optimistic value.
+      Object.entries(debounceTimers).forEach(([deviceId, timer]) => {
+        clearTimeout(timer);
+        const pending = pendingDispatch[deviceId];
+        if (pending && cleanup.dispatch) {
+          cleanup.dispatch(deviceId, pending.action, pending.generation);
+        }
+      });
+
+      // 2. An in-flight poll cannot survive unmount, and nothing else will resolve it,
+      //    so drop its optimistic value and let the real device status win.
+      Object.entries(pollTimers).forEach(([deviceId, timer]) => {
+        clearTimeout(timer);
+        cleanup.clearOptimistic?.(deviceId);
+      });
     };
   }, []);
 
-  const clearOptimistic = useCallback((deviceId) => {
-    setOptimisticActions((prev) => {
-      if (!(deviceId in prev)) return prev;
-      const next = { ...prev };
-      delete next[deviceId];
-      return next;
-    });
-  }, [setOptimisticActions]);
-
-  const setError = useCallback((deviceId, message) => {
-    setErrors((prev) => {
-      if (message === undefined && !(deviceId in prev)) return prev;
-      if (message === undefined) {
+  const clearOptimistic = useCallback(
+    (deviceId) => {
+      setOptimisticActions((prev) => {
+        if (!(deviceId in prev)) return prev;
         const next = { ...prev };
         delete next[deviceId];
         return next;
-      }
-      return { ...prev, [deviceId]: message };
-    });
-  }, [setErrors]);
+      });
+    },
+    [setOptimisticActions]
+  );
+
+  const setError = useCallback(
+    (deviceId, message) => {
+      setErrors((prev) => {
+        if (message === undefined && !(deviceId in prev)) return prev;
+        if (message === undefined) {
+          const next = { ...prev };
+          delete next[deviceId];
+          return next;
+        }
+        return { ...prev, [deviceId]: message };
+      });
+    },
+    [setErrors]
+  );
 
   const settle = useCallback(
     (deviceId, generation, { ok, message }) => {
@@ -76,7 +113,10 @@ function useDeviceCommand() {
       if (generationRef.current[deviceId] !== generation) return;
 
       if (Date.now() > deadline) {
-        settle(deviceId, generation, { ok: false, message: 'Hết thời gian chờ phản hồi từ máy chủ.' });
+        settle(deviceId, generation, {
+          ok: false,
+          message: 'Hết thời gian chờ phản hồi từ máy chủ.',
+        });
         return;
       }
 
@@ -106,7 +146,10 @@ function useDeviceCommand() {
         })
         .catch(() => {
           if (generationRef.current[deviceId] !== generation) return;
-          settle(deviceId, generation, { ok: false, message: 'Không thể kiểm tra trạng thái lệnh.' });
+          settle(deviceId, generation, {
+            ok: false,
+            message: 'Không thể kiểm tra trạng thái lệnh.',
+          });
         });
     },
     [settle]
@@ -136,14 +179,24 @@ function useDeviceCommand() {
 
       clearTimeout(debounceTimersRef.current[deviceId]);
       clearTimeout(pollTimersRef.current[deviceId]);
+      pendingDispatchRef.current[deviceId] = { action, generation };
       debounceTimersRef.current[deviceId] = setTimeout(() => {
+        delete pendingDispatchRef.current[deviceId];
+        delete debounceTimersRef.current[deviceId];
         dispatch(deviceId, action, generation);
       }, DEBOUNCE_MS);
     },
     [dispatch, setError, setOptimisticActions]
   );
 
-  const getOptimisticAction = useCallback((deviceId) => optimisticActions[deviceId], [optimisticActions]);
+  // Keep the unmount cleanup pointing at the current callbacks without re-running it.
+  cleanupRef.current.clearOptimistic = clearOptimistic;
+  cleanupRef.current.dispatch = dispatch;
+
+  const getOptimisticAction = useCallback(
+    (deviceId) => optimisticActions[deviceId],
+    [optimisticActions]
+  );
   const errorFor = useCallback((deviceId) => errors[deviceId], [errors]);
 
   return { toggle, getOptimisticAction, errorFor };

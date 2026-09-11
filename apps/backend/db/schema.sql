@@ -128,6 +128,7 @@ CREATE TABLE sensor_readings (
     captured_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_sensor_readings_sensor_time (sensor_id, created_at),
+    INDEX idx_sensor_readings_sensor_captured (sensor_id, captured_at),
     INDEX idx_sensor_readings_time (created_at),
     INDEX idx_sensor_readings_message (telemetry_message_id),
     CONSTRAINT fk_sensor_readings_sensor
@@ -235,6 +236,10 @@ CREATE TABLE door_passwords (
     door_device_id INT UNSIGNED NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    -- id log lon nhat tai thoi diem PIN nay duoc tao. accessLockStatus chi dem cac lan sai
+    -- co id LON HON gia tri nay, nen doi PIN thanh cong reset duoc bo dem ma khong phai
+    -- ghi mot dong log "thanh cong" gia, va khong phu thuoc dong ho giay-chan-le.
+    anchor_log_id BIGINT UNSIGNED NULL,
     updated_by INT UNSIGNED,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -260,6 +265,7 @@ CREATE TABLE door_access_logs (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_door_access_logs_device_time (door_device_id, created_at),
     INDEX idx_door_access_logs_result_time (result, created_at),
+    INDEX idx_door_access_logs_lockout (door_device_id, access_method, result, id, created_at),
     CONSTRAINT fk_door_access_logs_device
         FOREIGN KEY (door_device_id) REFERENCES devices(id)
         ON DELETE CASCADE ON UPDATE CASCADE,

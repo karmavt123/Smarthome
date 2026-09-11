@@ -44,6 +44,9 @@ Smarthome/
 ├── docker-compose.override.yml     # dev - Docker tu dong doc chong len
 ├── .env.example                    # mau cau hinh, copy thanh .env
 ├── .gitattributes                  # ep LF, danh dau .onnx la binary
+├── docs/                           # TOAN BO tai lieu (xem docs/README.md)
+│   ├── backend/  frontend/  ai-service/
+│   └── bao-cao/                    # bao cao ra soat & sua loi
 └── apps/
     ├── backend/
     │   ├── Dockerfile
@@ -75,6 +78,8 @@ Smarthome/
         │   └── faces/              # anh hieu chinh (gitignored)
         └── tools/                  # script do nguong
 ```
+
+📚 **Tài liệu chi tiết của cả ba thành phần nằm ở [`docs/`](docs/README.md).**
 
 `ai-service` là dịch vụ AI thuần — nhận ảnh trả embedding, nhận text trả ý định. Toàn bộ logic nghiệp vụ (quyền sở hữu, khoá 3 lần sai, dự phòng PIN, nhật ký mở cửa) nằm ở `backend`. Nhờ vậy `ai-service` chết thì hệ thống chỉ mất Face ID và giọng nói, phần còn lại chạy bình thường.
 
@@ -357,9 +362,25 @@ Ba ngưỡng dưới đây **phải đo trên dữ liệu thật**, không kế 
 |---|---|---|
 | `FACE_MATCH_THRESHOLD` | **1.24** | 3 người / 20 ảnh / 190 cặp. Cùng người 0.411–1.195, khác người 1.281–1.462. Hai cụm tách rời, chọn điểm giữa. Sai số 0/190 |
 | `VOICE_INTENT_THRESHOLD` | **0.73** | 22 câu, fastembed 0.8.0. Lệnh thật 0.785–1.000, ngoài miền 0.351–0.674 |
-| `LIVENESS_THRESHOLD` | 0.70 | **chưa hiệu chỉnh** |
+| `LIVENESS_THRESHOLD` | 0.90 | đã hiệu chỉnh trên 20 ảnh thật / 18 ảnh giả (10/09/2026) |
+
+> **Ảnh KHÔNG nằm sẵn trong image.** `apps/ai-service/.dockerignore` loại `app/faces/*.jpg`,
+> `live/` và `spoof/` để ~20MB ảnh sinh trắc học không bị nướng vào image; `ai-service` cũng
+> không bind-mount source. Vì vậy phải **copy ảnh vào container trước khi đo**, nếu không cả
+> hai lệnh dưới đều báo thư mục rỗng (0 ảnh) chứ không báo lỗi rõ ràng.
 
 ```bash
+# BUOC 0 — copy anh vao container dang chay (chay tu thu muc goc cua repo).
+# Dung `docker compose cp`, KHONG dung `docker cp`: tren Windows/PowerShell `docker cp`
+# voi duong dan tuong doi hay bao "GetFileAttributesEx ...: The system cannot find the
+# file specified", con `docker compose cp` giai duong dan theo thu muc cua compose file.
+docker compose cp ./apps/ai-service/app/faces ai-service:/app/app/faces
+docker compose cp ./apps/ai-service/live      ai-service:/app/live
+docker compose cp ./apps/ai-service/spoof     ai-service:/app/spoof
+
+# Kiem tra da copy duoc that chua truoc khi do (phai ra so > 0)
+docker compose exec ai-service sh -c 'ls /app/app/faces | wc -l; ls /app/live | wc -l; ls /app/spoof | wc -l'
+
 # Khuon mat: can >=2 nguoi, >=3 anh moi nguoi
 # Dat trong apps/ai-service/app/faces/, ten file <ten-nguoi>_<so>.jpg
 docker compose exec -e PYTHONPATH=/app ai-service \
@@ -777,9 +798,26 @@ The three thresholds below **must be measured against real data** rather than in
 |---|---|---|
 | `FACE_MATCH_THRESHOLD` | **1.24** | 3 people / 20 photos / 190 pairs. Same person 0.411–1.195, different people 1.281–1.462. Clusters fully separated, midpoint chosen. 0/190 errors |
 | `VOICE_INTENT_THRESHOLD` | **0.73** | 22 phrases, fastembed 0.8.0. Real commands 0.785–1.000, out-of-domain 0.351–0.674 |
-| `LIVENESS_THRESHOLD` | 0.70 | **not yet calibrated** |
+| `LIVENESS_THRESHOLD` | 0.90 | calibrated on 20 real / 18 spoof images (2026-09-10) |
+
+> **The images are not in the image.** `apps/ai-service/.dockerignore` excludes
+> `app/faces/*.jpg`, `live/` and `spoof/` so ~20MB of biometric photos are not baked into
+> the Docker image, and `ai-service` does not bind-mount its source either. Copy the
+> photos into the container first — otherwise both commands below report an empty folder
+> (0 images) rather than a clear error.
 
 ```bash
+# STEP 0 — copy the photos into the running container (run from the repo root).
+# Use `docker compose cp`, not `docker cp`: on Windows/PowerShell a relative path given to
+# `docker cp` often fails with "GetFileAttributesEx ...: The system cannot find the file
+# specified", while `docker compose cp` resolves paths against the compose file's folder.
+docker compose cp ./apps/ai-service/app/faces ai-service:/app/app/faces
+docker compose cp ./apps/ai-service/live      ai-service:/app/live
+docker compose cp ./apps/ai-service/spoof     ai-service:/app/spoof
+
+# Confirm the copy actually landed before measuring (each must print > 0)
+docker compose exec ai-service sh -c 'ls /app/app/faces | wc -l; ls /app/live | wc -l; ls /app/spoof | wc -l'
+
 # Faces: at least 2 people, 3+ photos each.
 # Place them in apps/ai-service/app/faces/, named <person>_<n>.jpg
 docker compose exec -e PYTHONPATH=/app ai-service \

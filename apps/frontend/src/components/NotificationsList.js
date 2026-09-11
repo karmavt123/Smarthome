@@ -1,20 +1,29 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBell, faEnvelope, faMobileScreenButton } from '@fortawesome/free-solid-svg-icons';
-import { faTelegram } from '@fortawesome/free-brands-svg-icons';
+import {
+  faBell,
+  faCircleInfo,
+  faTriangleExclamation,
+  faCircleExclamation,
+} from '@fortawesome/free-solid-svg-icons';
 
-const CHANNEL_META = {
-  in_app: { icon: faBell, label: 'Trong ứng dụng' },
-  email: { icon: faEnvelope, label: 'Email' },
-  telegram: { icon: faTelegram, label: 'Telegram' },
-  push: { icon: faMobileScreenButton, label: 'Push' },
+// Alerts carry a severity, not a delivery channel: the backend raises them in-app and
+// there is no email/telegram/push delivery implemented behind them. Showing severity is
+// both true and more useful than a channel badge that never varied.
+const SEVERITY_META = {
+  info: { icon: faCircleInfo, label: 'Thông tin' },
+  warning: { icon: faTriangleExclamation, label: 'Cảnh báo' },
+  critical: { icon: faCircleExclamation, label: 'Nghiêm trọng' },
 };
+
+const DEFAULT_SEVERITY = { icon: faBell, label: 'Thông báo' };
 
 const STATUS_META = {
-  pending: { label: 'Chờ gửi', className: 'bg-outline-variant/20 text-outline' },
-  sent: { label: 'Đã gửi', className: 'bg-secondary/15 text-secondary' },
-  failed: { label: 'Gửi thất bại', className: 'bg-error/15 text-error' },
+  unread: { label: 'Chưa đọc', className: 'bg-secondary/15 text-secondary' },
   read: { label: 'Đã đọc', className: 'bg-tertiary/15 text-tertiary' },
+  resolved: { label: 'Đã xử lý', className: 'bg-outline-variant/20 text-outline' },
 };
+
+const DEFAULT_STATUS = { label: 'Không rõ', className: 'bg-outline-variant/20 text-outline' };
 
 function NotificationsList({ notifications, onItemClick }) {
   if (notifications.length === 0) {
@@ -23,10 +32,10 @@ function NotificationsList({ notifications, onItemClick }) {
 
   return (
     <div className="flex flex-col divide-y divide-outline-variant/20">
-      {notifications.map(({ id, title, message, channel, status, time }) => {
-        const channelMeta = CHANNEL_META[channel];
-        const statusMeta = STATUS_META[status];
-        const unread = status !== 'read';
+      {notifications.map(({ id, title, message, severity, status, time }) => {
+        const severityMeta = SEVERITY_META[severity] || DEFAULT_SEVERITY;
+        const statusMeta = STATUS_META[status] || DEFAULT_STATUS;
+        const unread = status === 'unread';
 
         return (
           <button
@@ -38,7 +47,7 @@ function NotificationsList({ notifications, onItemClick }) {
             }`}
           >
             <div className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center text-secondary shrink-0">
-              <FontAwesomeIcon icon={channelMeta.icon} className="w-4 h-4" />
+              <FontAwesomeIcon icon={severityMeta.icon} className="w-4 h-4" />
             </div>
 
             <div className="min-w-0 flex-1">
@@ -48,11 +57,13 @@ function NotificationsList({ notifications, onItemClick }) {
               </div>
               <p className="text-label-sm text-outline mt-1">{message}</p>
               <p className="text-label-sm text-outline mt-1">
-                {channelMeta.label} • {time}
+                {severityMeta.label} • {time}
               </p>
             </div>
 
-            <span className={`shrink-0 px-2.5 py-1 rounded-full text-label-sm font-medium ${statusMeta.className}`}>
+            <span
+              className={`shrink-0 px-2.5 py-1 rounded-full text-label-sm font-medium ${statusMeta.className}`}
+            >
               {statusMeta.label}
             </span>
           </button>

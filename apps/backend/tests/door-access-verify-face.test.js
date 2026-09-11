@@ -392,11 +392,27 @@ describe('face lockout + PIN fallback', () => {
     expect(lockStatus.body.locked).toBe(true);
   });
 
+  test('changing the PIN requires the current one', async () => {
+    // Without this the lockout is decorative: anyone holding a session could overwrite
+    // the PIN instead of guessing it.
+    const missing = await request(app)
+      .put(`/api/door-access/${doorDevice.id}/pin`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ pin: '5678' });
+    expect(missing.status).toBe(400);
+
+    const wrong = await request(app)
+      .put(`/api/door-access/${doorDevice.id}/pin`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ pin: '5678', currentPin: '0000' });
+    expect(wrong.status).toBe(401);
+  });
+
   test('rotating the PIN deactivates the previous one', async () => {
     await request(app)
       .put(`/api/door-access/${doorDevice.id}/pin`)
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ pin: '5678' });
+      .send({ pin: '5678', currentPin: '4321' });
 
     const oldPinRes = await request(app)
       .post('/api/door-access/verify-pin')

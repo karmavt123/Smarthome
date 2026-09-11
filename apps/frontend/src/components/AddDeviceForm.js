@@ -11,13 +11,22 @@ const DEVICE_TYPE_OPTIONS = [
 
 function AddDeviceForm({ rooms, onSubmit, onCancel, isSubmitting, error }) {
   const [name, setName] = useState('');
+  const [deviceCode, setDeviceCode] = useState('');
   const [roomId, setRoomId] = useState(rooms[0]?.id ?? '');
   const [deviceType, setDeviceType] = useState('light');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
-    onSubmit({ name: name.trim(), roomId: roomId ? Number(roomId) : undefined, deviceType });
+    if (!name.trim() || !deviceCode.trim()) return;
+    // device_code is NOT NULL in the schema and identifies the device on MQTT, so it
+    // has to come from this form. Without it the request reached Prisma with
+    // device_code: undefined and every submit failed with a bare 500.
+    onSubmit({
+      name: name.trim(),
+      deviceCode: deviceCode.trim(),
+      roomId: roomId ? Number(roomId) : undefined,
+      deviceType,
+    });
   };
 
   return (
@@ -34,6 +43,23 @@ function AddDeviceForm({ rooms, onSubmit, onCancel, isSubmitting, error }) {
           placeholder="VD: Đèn Bàn Làm Việc"
           className="w-full rounded-lg bg-surface-container-low border border-outline-variant/40 px-4 py-3 text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:border-secondary"
         />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor="deviceCode" className="text-label-md text-on-surface-variant">
+          Mã thiết bị
+        </label>
+        <input
+          id="deviceCode"
+          type="text"
+          value={deviceCode}
+          onChange={(e) => setDeviceCode(e.target.value)}
+          placeholder="VD: yolobit-light"
+          className="w-full rounded-lg bg-surface-container-low border border-outline-variant/40 px-4 py-3 text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:border-secondary"
+        />
+        <p className="text-label-md text-outline">
+          Trùng với tên feed MQTT của thiết bị, không dấu và không khoảng trắng.
+        </p>
       </div>
 
       <div className="flex flex-col gap-2">
@@ -85,7 +111,7 @@ function AddDeviceForm({ rooms, onSubmit, onCancel, isSubmitting, error }) {
         </button>
         <button
           type="submit"
-          disabled={isSubmitting || !name.trim()}
+          disabled={isSubmitting || !name.trim() || !deviceCode.trim()}
           className="flex-1 rounded-lg bg-secondary text-on-secondary font-medium py-3 text-body-md hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {isSubmitting && <FontAwesomeIcon icon={faSpinner} className="w-4 h-4 animate-spin" />}

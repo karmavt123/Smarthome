@@ -162,28 +162,61 @@ describe('simulator backend flow', () => {
   });
 
   test('stores door access events', async () => {
-    const response = await authenticated('post', '/api/door-access/events').send({
+    // A face/password "success" written straight to the log resets the lockout counter
+    // (which counts failures since the last success), so verify-face / verify-pin own
+    // those rows and this endpoint refuses them.
+    const forgedSuccess = await authenticated('post', '/api/door-access/events').send({
       doorDeviceId: resources.devices.door.id,
       faceProfileId: resources.faceProfile.id,
       accessMethod: 'face',
       result: 'success',
       confidenceScore: 0.96,
     });
+    expect(forgedSuccess.status).toBe(400);
 
-    expect(response.status).toBe(201);
-    expect(response.body.accessLog.result).toBe('success');
-
-    const passwordAttempt = await authenticated('post', '/api/door-access/events').send({
+    // ...and refuses a face/password FAILURE too. Blocking only `success` left the mirror
+    // image open: three spammed failures locked the real owner out of both verify-pin and
+    // set-pin for 5 minutes, renewable forever — a DoS on their own front door.
+    const forgedFailure = await authenticated('post', '/api/door-access/events').send({
       doorDeviceId: resources.devices.door.id,
       accessMethod: 'password',
       result: 'failed',
       failureReason: 'Incorrect PIN',
     });
-    expect(passwordAttempt.status).toBe(201);
+    expect(forgedFailure.status).toBe(400);
+
+    // A voice "success" is worse than a forged log line: it wrote devices.status = "open"
+    // and pushed an SSE without touching the board — handing back exactly the unlock that
+    // executeVoiceCommand withholds behind requiresVerification.
+    const forgedVoice = await authenticated('post', '/api/door-access/events').send({
+      doorDeviceId: resources.devices.door.id,
+      accessMethod: 'voice',
+      result: 'success',
+    });
+    expect(forgedVoice.status).toBe(400);
+
+    // A failed app/voice attempt is just a log line — allowed.
+    const appFailure = await authenticated('post', '/api/door-access/events').send({
+      doorDeviceId: resources.devices.door.id,
+      accessMethod: 'app',
+      result: 'failed',
+      failureReason: 'Device offline',
+    });
+    expect(appFailure.status).toBe(201);
+
+    // A manual unlock really did happen and nothing else will report it, so it stays.
+    const response = await authenticated('post', '/api/door-access/events').send({
+      doorDeviceId: resources.devices.door.id,
+      accessMethod: 'manual',
+      result: 'success',
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.accessLog.result).toBe('success');
 
     const plaintextPin = await authenticated('post', '/api/door-access/events').send({
       doorDeviceId: resources.devices.door.id,
-      accessMethod: 'password',
+      accessMethod: 'manual',
       result: 'failed',
       failureReason: 'Incorrect PIN',
       pin: '1234',

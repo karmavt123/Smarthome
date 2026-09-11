@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask, jsonify
 from flask_cors import CORS
 
@@ -8,7 +10,18 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    CORS(app)
+    # CORS(app) allowed every origin on the internet to call this service from a
+    # victim's browser. Nothing in the product needs that: the browser talks to the Node
+    # backend, and only the backend calls this service (server-to-server, where CORS does
+    # not apply). Default to no cross-origin access; AI_ALLOWED_ORIGINS re-opens it for
+    # local debugging.
+    allowed_origins = [
+        origin.strip()
+        for origin in os.environ.get("AI_ALLOWED_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
+    if allowed_origins:
+        CORS(app, origins=allowed_origins)
 
     Config.UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 

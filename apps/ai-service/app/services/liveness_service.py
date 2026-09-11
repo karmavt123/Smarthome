@@ -18,6 +18,13 @@ REAL_CLASS_INDEX = 1
 INPUT_SIZE = 80
 CROP_SCALE = 2.7
 
+# Why a frame could not be scored. Kept distinct from a *low* score: "we could not
+# measure" and "we measured and it looks fake" are different answers to the user, and
+# collapsing them into 0.0 told everyone standing slightly off-camera that they had been
+# caught spoofing.
+NO_FACE = "no_face"
+MULTIPLE_FACES = "multiple_faces"
+
 
 def _detect_bboxes(image: np.ndarray) -> np.ndarray:
     det_model = get_face_app().models["detection"]
@@ -55,11 +62,15 @@ def _crop_for_liveness(image: np.ndarray, bbox: np.ndarray) -> np.ndarray:
     return cv2.resize(crop, (INPUT_SIZE, INPUT_SIZE))
 
 
-def _score_frame(image: np.ndarray) -> float | None:
-    """Returns real-class probability, or None if the frame has 0 or >=2 faces."""
+def _score_frame_detailed(image: np.ndarray) -> tuple[float | None, str | None]:
+    """(real-class probability, None), or (None, reason) when the frame has 0 or >=2 faces."""
     bboxes = _detect_bboxes(image)
-    if bboxes is None or len(bboxes) != 1:
-        return None
+    face_count = 0 if bboxes is None else len(bboxes)
+
+    if face_count == 0:
+        return None, NO_FACE
+    if face_count > 1:
+        return None, MULTIPLE_FACES
 
     crop = _crop_for_liveness(image, bboxes[0])
     blob = crop.astype(np.float32).transpose(2, 0, 1)[np.newaxis, ...]
@@ -70,14 +81,42 @@ def _score_frame(image: np.ndarray) -> float | None:
 
     probs = np.exp(logits - logits.max())
     probs /= probs.sum()
-    return float(probs[REAL_CLASS_INDEX])
+    return float(probs[REAL_CLASS_INDEX]), None
+
+
+def _score_frame(image: np.ndarray) -> float | None:
+    """Score only, or None if the frame has 0 or >=2 faces (used by tools/measure_liveness.py)."""
+    score, _ = _score_frame_detailed(image)
+    return score
+
+
+def evaluate_liveness(frames: list[np.ndarray]) -> tuple[float | None, str | None]:
+    """(min score over measurable frames, None), or (None, reason) if none could be measured.
+
+    Aggregating by min is deliberate: for a live person every captured frame has to clear
+    the bar, and for a spoof a single frame that gives the trick away is enough to reject.
+    """
+    scores: list[float] = []
+    reasons: list[str] = []
+
+    for frame in frames:
+        score, reason = _score_frame_detailed(frame)
+        if score is None:
+            reasons.append(reason)
+        else:
+            scores.append(score)
+
+    if scores:
+        return min(scores), None
+
+    # Nothing measurable. Report "multiple faces" only when that was the problem in every
+    # frame; otherwise "no face" is the more useful thing to tell the user.
+    if reasons and all(reason == MULTIPLE_FACES for reason in reasons):
+        return None, MULTIPLE_FACES
+    return None, NO_FACE
 
 
 def compute_liveness(frames: list[np.ndarray]) -> float:
-    """Score every frame that has exactly one detectable face, return the min (safest)."""
-    scores = [s for s in (_score_frame(f) for f in frames) if s is not None]
-
-    if not scores:
-        return 0.0
-
-    return min(scores)
+    """Backwards-compatible wrapper: unmeasurable collapses to 0.0."""
+    score, _ = evaluate_liveness(frames)
+    return 0.0 if score is None else score

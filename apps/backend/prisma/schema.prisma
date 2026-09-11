@@ -133,6 +133,10 @@ model door_access_logs {
   @@index([user_id], map: "fk_door_access_logs_user")
   @@index([door_device_id, created_at], map: "idx_door_access_logs_device_time")
   @@index([result, created_at], map: "idx_door_access_logs_result_time")
+  // accessLockStatus runs two queries shaped exactly like this on every PIN/face attempt
+  // — and, since pin-status started reporting the lockout, on the security page's 5s
+  // poll as well. Neither existing index covers access_method.
+  @@index([door_device_id, access_method, result, id, created_at], map: "idx_door_access_logs_lockout")
 }
 
 model door_passwords {
@@ -140,6 +144,10 @@ model door_passwords {
   door_device_id Int      @db.UnsignedInt
   password_hash  String   @db.VarChar(255)
   is_active      Boolean  @default(true)
+  // id log lon nhat tai thoi diem PIN nay duoc tao. accessLockStatus chi dem cac lan sai
+  // co id LON HON gia tri nay, nen doi PIN thanh cong se reset bo dem ma khong can ghi
+  // mot dong log "thanh cong" gia — va khong phu thuoc vao dong ho giay-chan-le.
+  anchor_log_id  BigInt?  @db.UnsignedBigInt
   updated_by     Int?     @db.UnsignedInt
   created_at     DateTime @default(now()) @db.DateTime(0)
   updated_at     DateTime @default(now()) @updatedAt @db.DateTime(0)
@@ -253,6 +261,11 @@ model sensor_readings {
   telemetry_messages   telemetry_messages @relation(fields: [telemetry_message_id], references: [id], onDelete: Cascade, map: "fk_sensor_readings_message")
 
   @@index([sensor_id, created_at], map: "idx_sensor_readings_sensor_time")
+  // Every hot read orders or filters on captured_at (dashboard, environment, history,
+  // the daily aggregate, and the simulator's "last value" lookup on every tick), but the
+  // only composite index started with created_at — MySQL could use the sensor_id prefix
+  // and then filesorted the rest. At one reading per 5s that is ~17k rows/day/sensor.
+  @@index([sensor_id, captured_at], map: "idx_sensor_readings_sensor_captured")
   @@index([created_at], map: "idx_sensor_readings_time")
   @@index([telemetry_message_id], map: "idx_sensor_readings_message")
 }

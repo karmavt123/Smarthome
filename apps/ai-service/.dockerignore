@@ -7,3 +7,19 @@ models
 storage/uploads
 .pytest_cache
 .git
+
+# Anh khuon mat dung de hieu chuan nguong. Git da ignore chung, nhung Dockerfile dung
+# `COPY . .` nen khong loai o day thi ~20MB anh sinh trac hoc bi nuong vao image.
+# Anh dung de do nguong duoc dua vao bang `docker cp` luc can (xem tools/*.py), khong
+# nuong san trong image.
+app/faces/*.jpg
+app/faces/*.jpeg
+app/faces/*.png
+spoof
+live
+
+# tests/ va tools/ CO Y GIU LAI: README huong dan chay
+#   docker compose exec ai-service python tools/measure_voice.py
+#   docker compose exec ai-service pytest -v
+# Loai chung ra khoi image se lam hai quy trinh do gay (pytest thu duoc 0 test).
+# Chung chi vai chuc KB, khong dang de doi lay viec pha tai lieu.

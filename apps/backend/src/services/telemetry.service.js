@@ -4,8 +4,10 @@ const HttpError = require('../utils/http-error');
 const { requireDevice, requireSensor } = require('./ownership.service');
 const { evaluateReading } = require('./alert-evaluation.service');
 const sseService = require('./sse.service');
+const { buildDateRange, reportOffset } = require('../utils/date-range');
 
 const MAX_HISTORY_LIMIT = 500;
+const DEFAULT_TREND_DAYS = 7;
 const MESSAGE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,100}$/;
 
 function parseTimestamp(timestamp) {
@@ -34,15 +36,6 @@ function parseMessageId(messageId) {
     );
   }
   return value;
-}
-
-const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-function parseHistoryDate(value, fieldName, endOfDay = false) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) throw new HttpError(400, `Invalid ${fieldName} date`);
-  if (endOfDay && DATE_ONLY_PATTERN.test(value)) parsed.setUTCHours(23, 59, 59, 999);
-  return parsed;
 }
 
 function validateReading(sensor, rawValue) {
@@ -205,18 +198,12 @@ async function ingestBatch(userId, payload) {
 async function getHistory(userId, sensorId, query = {}) {
   const sensor = await requireSensor(userId, sensorId, { devices: true });
   const limit = Math.min(Math.max(Number(query.limit) || 100, 1), MAX_HISTORY_LIMIT);
-  const capturedAt = {};
-
-  if (query.from) capturedAt.gte = parseHistoryDate(query.from, 'from');
-  if (query.to) capturedAt.lte = parseHistoryDate(query.to, 'to', true);
-  if (capturedAt.gte && capturedAt.lte && capturedAt.gte > capturedAt.lte) {
-    throw new HttpError(400, 'from must be earlier than to');
-  }
+  const capturedAt = buildDateRange(query);
 
   const readings = await prisma.sensor_readings.findMany({
     where: {
       sensor_id: sensor.id,
-      ...(Object.keys(capturedAt).length ? { captured_at: capturedAt } : {}),
+      ...(capturedAt ? { captured_at: capturedAt } : {}),
     },
     include: { telemetry_messages: { select: { message_id: true } } },
     orderBy: { captured_at: 'desc' },
@@ -235,7 +222,10 @@ async function recordHeartbeat(userId, deviceId) {
 }
 
 async function markStaleDevicesOffline(referenceTime = new Date()) {
-  const timeoutSeconds = Math.max(Number(process.env.DEVICE_OFFLINE_AFTER_SECONDS) || 15, 1);
+  // Mac dinh 60 de khop .env.example va docker-compose. Truoc day o day la 15 trong khi
+  // config ship kem la 60 — chay backend ma thieu bien moi truong thi thiet bi bi danh
+  // dau offline sau 15 giay, nhanh gap 4 lan y muon, gay nhay online/offline lien tuc.
+  const timeoutSeconds = Math.max(Number(process.env.DEVICE_OFFLINE_AFTER_SECONDS) || 60, 1);
   const cutoff = new Date(referenceTime.getTime() - timeoutSeconds * 1000);
 
   return prisma.devices.updateMany({
@@ -247,11 +237,74 @@ async function markStaleDevicesOffline(referenceTime = new Date()) {
   });
 }
 
+// Daily aggregation done in MySQL instead of shipping raw rows to the browser.
+// With a reading every few seconds, a 7-day window is >100k rows — far past the 500-row
+// cap on getSensorReadings, which is why the "trung bình theo ngày, 7 ngày" chart used
+// to really plot only the last couple of hours. GROUP BY here returns 7 rows.
+async function getDailySensorAverages(userId, sensorId, query = {}) {
+  const sensor = await requireSensor(userId, sensorId);
+
+  const range = buildDateRange(query) || {};
+  const from = range.gte || new Date(Date.now() - DEFAULT_TREND_DAYS * 24 * 60 * 60 * 1000);
+  const to = range.lte || new Date();
+
+  // Tagged template -> Prisma parameterises these, they are not string-concatenated.
+  //
+  // DATE_FORMAT, not DATE(): DATE() comes back as a JS Date built at local midnight, and
+  // formatting that through toISOString() would shift the calendar day.
+  //
+  // CONVERT_TZ so the buckets are the reader's days, not UTC days — grouping raw
+  // captured_at put everything from 00:00-07:00 local into the previous day's column.
+  // An offset literal is used rather than a zone name because named zones need the
+  // mysql.time_zone_* tables loaded, which the stock mysql:8.0 image does not do.
+  const offset = reportOffset();
+
+  // GROUP BY on the ALIAS, not on a second copy of the expression. Repeating it meant the
+  // offset placeholder appeared twice, and MySQL cannot prove two separate `?` parameters
+  // hold the same value — under ONLY_FULL_GROUP_BY (on by default in the mysql:8.0 image)
+  // it therefore read the SELECT list as containing a bare non-aggregated column and
+  // failed every call with ER_WRONG_FIELD_WITH_GROUP (1055). Grouping by the alias keeps
+  // one placeholder and one expression.
+  const rows = await prisma.$queryRaw`
+    SELECT DATE_FORMAT(CONVERT_TZ(captured_at, '+00:00', ${offset}), '%Y-%m-%d') AS day,
+           AVG(value)                                                            AS avg_value,
+           MIN(value)                                                            AS min_value,
+           MAX(value)                                                            AS max_value,
+           COUNT(*)                                                              AS reading_count
+      FROM sensor_readings
+     WHERE sensor_id = ${sensor.id}
+       AND captured_at >= ${from}
+       AND captured_at <= ${to}
+     GROUP BY day
+     ORDER BY day ASC
+  `;
+
+  return {
+    sensor_id: sensor.id,
+    sensor_type: sensor.sensor_type,
+    unit: sensor.unit,
+    from,
+    to,
+    // A NULL day means CONVERT_TZ refused the offset; String(null) would put a literal
+    // "null" bucket on the chart. Drop those rows instead of rendering a fake day.
+    days: rows
+      .filter((row) => row.day != null)
+      .map((row) => ({
+        // AVG/MIN/MAX arrive as Decimal and COUNT as BigInt over the raw driver, so every
+        // field is coerced explicitly rather than trusted to serialise as a number.
+        day: String(row.day),
+        avg: Number(Number(row.avg_value).toFixed(2)),
+        min: Number(Number(row.min_value).toFixed(2)),
+        max: Number(Number(row.max_value).toFixed(2)),
+        count: Number(row.reading_count),
+      })),
+  };
+}
+
 module.exports = {
   MAX_HISTORY_LIMIT,
   parseTimestamp,
   parseMessageId,
-  parseHistoryDate,
   validateReading,
   storeReading,
   storeReadings,
@@ -259,4 +312,5 @@ module.exports = {
   getHistory,
   recordHeartbeat,
   markStaleDevicesOffline,
+  getDailySensorAverages,
 };

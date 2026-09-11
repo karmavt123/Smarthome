@@ -22,6 +22,9 @@ export function getNextAction(device, optimisticAction) {
 
 export function getStatusLabel(device, optimisticAction) {
   if (!optimisticAction && device.connectionStatus === 'offline') return 'Mất kết nối';
+  // Sensors have no on/off the user can act on — "Đang bật" would be meaningless next to
+  // a card with no switch. What matters for them is whether data is still arriving.
+  if (device.deviceType === 'sensor') return 'Đang gửi dữ liệu';
   const isOn = isDeviceOn(device, optimisticAction);
   if (device.deviceType === 'door') return isOn ? 'Đang mở' : 'Đã đóng';
   return isOn ? 'Đang bật' : 'Đang tắt';

@@ -16,8 +16,7 @@ import voiceCommandService from '~/services/voiceCommandService';
 // phase: 'listening' | 'idle' | 'processing' | 'success' | 'unknown' | 'error'
 function VoiceSearchModal({ open, onClose }) {
   const { currentHomeId } = useHome();
-  const { transcript, resetTranscript, browserSupportsSpeechRecognition } =
-    useSpeechRecognition();
+  const { transcript, resetTranscript, browserSupportsSpeechRecognition } = useSpeechRecognition();
 
   const [phase, setPhase] = useState('idle');
   const [errorMessage, setErrorMessage] = useState(null);
@@ -61,12 +60,6 @@ function VoiceSearchModal({ open, onClose }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, browserSupportsSpeechRecognition]);
-
-  useEffect(() => {
-    if (transcript) {
-      console.log('[VoiceSearch] transcript:', transcript);
-    }
-  }, [transcript]);
 
   const sendCommand = async (text) => {
     setPhase('processing');
@@ -197,7 +190,9 @@ function VoiceSearchModal({ open, onClose }) {
             </button>
           </div>
 
-          <p className={`text-body-md text-center ${isError ? 'text-error' : 'text-on-surface-variant'}`}>
+          <p
+            className={`text-body-md text-center ${isError ? 'text-error' : 'text-on-surface-variant'}`}
+          >
             {statusText}
           </p>
 

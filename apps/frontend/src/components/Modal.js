@@ -1,8 +1,13 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useId } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 
 function Modal({ open, onClose, title, children, dismissable = true }) {
+  // Modals nest (VoiceSearchModal opens a second one inside itself). A literal
+  // id="modal-title" put two elements with the same id in the DOM, and the inner
+  // dialog's aria-labelledby then resolved to the OUTER title — screen readers
+  // announced the wrong heading. useId gives each instance its own.
+  const titleId = useId();
   const handleClose = useCallback(() => {
     if (dismissable) onClose();
   }, [dismissable, onClose]);
@@ -40,14 +45,14 @@ function Modal({ open, onClose, title, children, dismissable = true }) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby={titleId}
         className={`relative w-full max-w-[28rem] bg-surface-container rounded-xl border border-outline-variant/30 shadow-lg transition-all duration-200 ${
           visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
         }`}
       >
         {title && (
           <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/30">
-            <h2 id="modal-title" className="text-body-lg font-semibold text-on-surface">
+            <h2 id={titleId} className="text-body-lg font-semibold text-on-surface">
               {title}
             </h2>
             {dismissable && (

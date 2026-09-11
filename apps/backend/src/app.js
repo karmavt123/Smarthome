@@ -26,6 +26,9 @@ const voiceCommandsRoutes = require("./routes/voice-commands.routes");
 const faceProfilesRoutes = require("./routes/face-profiles.routes");
 const eventsRoutes = require("./routes/events.routes");
 const errorHandler = require("./middlewares/error.middleware");
+const {
+  requireSignedUpload,
+} = require("./middlewares/signed-upload.middleware");
 
 const app = express();
 
@@ -42,9 +45,31 @@ app.get("/health", (req, res) => {
 });
 
 app.use(cors());
+
+// morgan("dev") logs req.originalUrl verbatim, and two URLs legitimately carry
+// secrets in the query string: the SSE stream (?token=, because EventSource cannot
+// set headers) and signed upload URLs (?sig=). Redact them so an access token never
+// lands in `docker logs` or a reverse-proxy access log.
+morgan.token("url", (req) => {
+  const [pathname, query] = req.originalUrl.split("?");
+  if (!query) return pathname;
+  const params = new URLSearchParams(query);
+  for (const key of ["token", "sig"]) {
+    if (params.has(key)) params.set(key, "REDACTED");
+  }
+  return `${pathname}?${params.toString()}`;
+});
 app.use(morgan("dev"));
+
 app.use(express.json());
-app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
+
+// Face images are biometric data: they are only reachable through a short-lived
+// signed URL minted by the API, never by guessing the filename.
+app.use(
+  "/uploads",
+  requireSignedUpload,
+  express.static(path.join(__dirname, "..", "uploads")),
+);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
@@ -65,6 +90,12 @@ app.use("/api", doorAccessRoutes);
 app.use("/api", voiceCommandsRoutes);
 app.use("/api", faceProfilesRoutes);
 app.use("/api", eventsRoutes);
+
+// Unknown /api path -> JSON, not Express's default HTML page. A client that only ever
+// parses JSON otherwise fails on the HTML with a confusing parse error instead of a 404.
+app.use("/api", (req, res) => {
+  res.status(404).json({ message: `Cannot ${req.method} ${req.originalUrl}`, details: {} });
+});
 
 app.use(errorHandler);
 

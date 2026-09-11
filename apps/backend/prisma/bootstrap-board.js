@@ -22,8 +22,11 @@ const DEVICES = [
 ];
 
 async function main() {
-  const admin = await prisma.users.findUnique({ where: { email: 'admin@admin.com' } });
-  if (!admin) throw new Error('Chua co admin@admin.com - chay seed truoc');
+  // Must resolve the same account seed.js created (see SEED_ADMIN_EMAIL there),
+  // otherwise the board gets bootstrapped under a user that does not exist.
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@admin.com';
+  const admin = await prisma.users.findUnique({ where: { email: adminEmail } });
+  if (!admin) throw new Error(`Chua co ${adminEmail} - chay seed truoc`);
 
   let home = await prisma.homes.findFirst({ where: { user_id: admin.id, name: HOME_NAME } });
   if (!home) {

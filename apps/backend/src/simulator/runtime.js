@@ -45,11 +45,23 @@ async function generateSimulatedReadings() {
 
   for (const device of devices) {
     if (isDevicePaused(device.id)) continue;
-    const entries = device.sensors.map((sensor) => ({
-      sensor,
-      rawValue: nextSensorValue(sensor.sensor_type, sensor.sensor_readings[0]?.value),
-    }));
-    if (entries.length) await storeReadings(device, entries);
+
+    // Per-device isolation. storeReadings -> validateReading throws HttpError(400) when a
+    // value falls outside the sensor's min/max, and those bounds live in the DB where
+    // anyone can tighten them. Without this catch, the first bad device aborted the whole
+    // tick, so every *other* simulated device silently stopped producing readings too —
+    // and stayed stopped, every tick, forever.
+    try {
+      const entries = device.sensors.map((sensor) => ({
+        sensor,
+        rawValue: nextSensorValue(sensor.sensor_type, sensor.sensor_readings[0]?.value),
+      }));
+      if (entries.length) await storeReadings(device, entries);
+    } catch (error) {
+      console.warn(
+        `[simulator] bo qua ${device.device_code}: ${error.message}`,
+      );
+    }
   }
 }
 

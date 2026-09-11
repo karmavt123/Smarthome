@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 
 // verify-face now wants a 1-5 frame burst spanning ~1s (liveness check on
-// the backend) instead of a single still frame — see docs/FACE-ID-USAGE.md.
+// the backend) instead of a single still frame — see docs/frontend/FACE-ID-USAGE.md.
 const BURST_FRAME_COUNT = 5;
 const BURST_FRAME_SPACING_MS = 200; // 5 frames * 200ms ≈ 1s burst window
 

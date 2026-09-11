@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSpinner } from '@fortawesome/free-solid-svg-icons';
 import useHome from '~/hooks/useHome';
@@ -34,7 +34,8 @@ function SecurityPage() {
   const [dashboard, setDashboard] = useState(null);
   const [doorDeviceId, setDoorDeviceId] = useState(null);
   const [faceProfiles, setFaceProfiles] = useState([]);
-  const [hasPin, setHasPin] = useState(null);
+  // Whole payload from /door-access/pin-status: { hasPin, locked, lockedUntil, lockoutThreshold }
+  const [pinStatus, setPinStatus] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -48,6 +49,10 @@ function SecurityPage() {
 
   const [pinPadOpen, setPinPadOpen] = useState(false);
   const [faceIdOpen, setFaceIdOpen] = useState(false);
+  const unlockRefetchTimerRef = useRef(null);
+  const hasPin = pinStatus ? pinStatus.hasPin : null;
+
+  useEffect(() => () => clearTimeout(unlockRefetchTimerRef.current), []);
 
   const [activeHistoryTab, setActiveHistoryTab] = useState('face');
   const [faceHistory, setFaceHistory] = useState([]);
@@ -73,8 +78,7 @@ function SecurityPage() {
       const door = devicesRes.find((d) => d.deviceType === 'door') || null;
       setDoorDeviceId(door?.id ?? null);
       if (door) {
-        const pinStatus = await doorAccessService.getPinStatus(door.id);
-        setHasPin(pinStatus.hasPin);
+        setPinStatus(await doorAccessService.getPinStatus(door.id));
       }
       setLoadError(null);
     } catch (err) {
@@ -103,7 +107,9 @@ function SecurityPage() {
     async (method) => {
       if (!doorDeviceId) return;
       const isFace = method === 'face';
-      const getHistory = isFace ? doorAccessService.getFaceHistory : doorAccessService.getPinHistory;
+      const getHistory = isFace
+        ? doorAccessService.getFaceHistory
+        : doorAccessService.getPinHistory;
       const page = isFace ? facePage : pinPage;
       try {
         const res = await getHistory({ doorDeviceId, page, limit: HISTORY_PAGE_SIZE });
@@ -154,12 +160,14 @@ function SecurityPage() {
     }
   };
 
-  const handleSetPasscode = async (pin, doorDeviceId) => {
+  const handleSetPasscode = async (pin, currentPin, doorDeviceId) => {
     setIsSubmittingPasscode(true);
     setPasscodeError(null);
     try {
-      await doorAccessService.setPin(doorDeviceId, pin);
-      setHasPin(true);
+      await doorAccessService.setPin(doorDeviceId, pin, currentPin);
+      // Merge rather than replace: setting a PIN clears nothing about the lockout, and
+      // the next fetchData() refresh will bring the authoritative payload anyway.
+      setPinStatus((prev) => ({ ...(prev || {}), hasPin: true }));
       setPasscodeModalOpen(false);
     } catch (err) {
       setPasscodeError(err?.message || 'Không thể lưu mã PIN.');
@@ -174,7 +182,11 @@ function SecurityPage() {
     fetchData();
     fetchHistory('face');
     fetchHistory('pin');
-    setTimeout(() => {
+    // Second pass once the board has had time to acknowledge the command. Tracked in a
+    // ref so leaving the page within 1.5s does not fire five requests into a component
+    // that is already gone.
+    clearTimeout(unlockRefetchTimerRef.current);
+    unlockRefetchTimerRef.current = setTimeout(() => {
       fetchData();
       fetchHistory('face');
       fetchHistory('pin');
@@ -250,7 +262,13 @@ function SecurityPage() {
             onAdd={() => setProfileModalOpen(true)}
             onDelete={handleDeleteFaceProfile}
           />
-          <PasscodeCard onEdit={() => setPasscodeModalOpen(true)} />
+          <PasscodeCard
+            onEdit={() => setPasscodeModalOpen(true)}
+            hasPin={hasPin}
+            locked={pinStatus?.locked}
+            lockedUntil={pinStatus?.lockedUntil}
+            lockoutThreshold={pinStatus?.lockoutThreshold}
+          />
         </div>
       </div>
 
@@ -297,7 +315,8 @@ function SecurityPage() {
           </p>
         )}
         <ChangePasscodeForm
-          onSubmit={(pin) => handleSetPasscode(pin, doorDevice?.id)}
+          requireCurrentPin={hasPin === true}
+          onSubmit={(pin, currentPin) => handleSetPasscode(pin, currentPin, doorDevice?.id)}
           onCancel={hasPin === false ? undefined : () => setPasscodeModalOpen(false)}
           isSubmitting={isSubmittingPasscode}
           error={passcodeError}

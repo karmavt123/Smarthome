@@ -31,6 +31,14 @@ router.delete('/alert-rules/:id', requireAuth, controller.rulesDestroy);
  *       - in: query
  *         name: limit
  *         schema: { type: integer, default: 50, maximum: 200 }
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, format: date }
+ *         description: Only alerts created at or after this date (YYYY-MM-DD or ISO timestamp)
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, format: date }
+ *         description: Only alerts created at or before this date; a bare date covers the whole day
  *     responses:
  *       200: { description: Paginated list of alerts }
  */

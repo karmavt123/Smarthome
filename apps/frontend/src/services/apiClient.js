@@ -6,6 +6,8 @@ class ApiClient {
   constructor() {
     this.accessToken = null;
     this.onUnauthorized = null;
+    // In-flight refresh, shared by every request that gets a 401 at the same time.
+    this.refreshPromise = null;
 
     this.client = axios.create({
       baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -35,24 +37,12 @@ class ApiClient {
       !isAuthEndpoint
     ) {
       originalRequest._retry = true;
-      const refreshToken = this.getRefreshToken();
 
-      if (refreshToken) {
-        try {
-          const { data: tokens } = await axios.post(
-            `${this.client.defaults.baseURL}/auth/refresh-token`,
-            {
-              refreshToken,
-            }
-          );
-          this.setTokens(tokens);
-          originalRequest.headers.Authorization = `Bearer ${tokens.accessToken}`;
-          return this.client(originalRequest);
-        } catch {
-          this.clearTokens();
-          if (this.onUnauthorized) this.onUnauthorized();
-        }
-      } else {
+      try {
+        const tokens = await this.refreshTokens();
+        originalRequest.headers.Authorization = `Bearer ${tokens.accessToken}`;
+        return this.client(originalRequest);
+      } catch {
         this.clearTokens();
         if (this.onUnauthorized) this.onUnauthorized();
       }
@@ -62,6 +52,33 @@ class ApiClient {
       return Promise.reject({ ...error.response.data, status: error.response.status });
     }
     return Promise.reject(error);
+  }
+
+  // Refresh tokens are single-use: the backend deletes the row it just consumed
+  // (auth.service.js `refresh_tokens.delete`). Pages fire several requests in parallel,
+  // so when the access token expires they all 401 at once. Each one used to POST the
+  // SAME refresh token — the first won, the rest got a P2025 -> 500 and logged the user
+  // out even though the refresh had actually succeeded. Funnelling every caller through
+  // one shared promise means the token is spent exactly once.
+  refreshTokens() {
+    if (this.refreshPromise) return this.refreshPromise;
+
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken) return Promise.reject(new Error('No refresh token'));
+
+    this.refreshPromise = axios
+      .post(`${this.client.defaults.baseURL}/auth/refresh-token`, { refreshToken })
+      .then(({ data: tokens }) => {
+        this.setTokens(tokens);
+        return tokens;
+      })
+      .finally(() => {
+        // Cleared either way: on success the next expiry needs a fresh round, on
+        // failure a retry must not be handed the rejected promise forever.
+        this.refreshPromise = null;
+      });
+
+    return this.refreshPromise;
   }
 
   setTokens({ accessToken, refreshToken }) {
@@ -98,7 +115,7 @@ class ApiClient {
   // header for this one request — axios then lets the browser set the correct
   // multipart boundary itself, which it can only do when no Content-Type is
   // pre-set. Face capture requests can take ~8-10s on a cold model load
-  // (see docs/FACE-ID-USAGE.md), so give them more room than the 10s default.
+  // (see docs/frontend/FACE-ID-USAGE.md), so give them more room than the 10s default.
   postForm(url, formData, config) {
     return this.client.post(url, formData, {
       timeout: 15000,

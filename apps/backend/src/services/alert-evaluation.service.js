@@ -120,7 +120,11 @@ async function evaluateDoorAccessFailures(device, accessMethod) {
 
   if (recentFailures < DOOR_FAILURE_THRESHOLD) return null;
 
-  const doorTag = `[door:${device.id}]`;
+  // Keyed by door AND method. With `[door:<id>]` alone, one unresolved face alert
+  // swallowed every PIN alert for the same door: a burst of face failures raised the
+  // alert, and an attacker could then brute-force the keypad on that door in complete
+  // silence until somebody happened to resolve the face alert by hand.
+  const doorTag = `[door:${device.id}:${accessMethod}]`;
   const existingActiveAlert = await prisma.alerts.findFirst({
     where: {
       home_id: device.home_id,

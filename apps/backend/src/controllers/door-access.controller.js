@@ -60,6 +60,17 @@ async function setPin(req, res) {
     req.user.sub,
     req.params.doorDeviceId,
     req.body.pin,
+    req.body.current_pin,
+  );
+  res.status(200).json(serialize(result));
+}
+
+async function clearPin(req, res) {
+  // case.middleware.js has already decamelized the body, same as setPin above.
+  const result = await doorAccessService.clearDoorPin(
+    req.user.sub,
+    req.params.doorDeviceId,
+    req.body.current_pin,
   );
   res.status(200).json(serialize(result));
 }
@@ -101,6 +112,7 @@ module.exports = {
   faceLockStatus,
   pinStatus,
   setPin,
+  clearPin,
   verifyPin,
   faceHistory,
   pinHistory,

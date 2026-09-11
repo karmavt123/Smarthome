@@ -6,6 +6,7 @@ const { isSimulatedDevice, isDevicePaused } = require("../simulator/state");
 const sseService = require("./sse.service");
 const { isBoardDevice } = require("../mqtt/channel-map");
 const mqttService = require("./mqtt.service");
+const { buildDateRange } = require("../utils/date-range");
 
 const COMMAND_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -275,6 +276,8 @@ async function listDeviceActions(userId, query = {}) {
     statusFilter = { in: ["failed", "expired"] };
   else if (query.status) statusFilter = query.status;
 
+  const createdAt = buildDateRange(query);
+
   const commands = await prisma.device_commands.findMany({
     where: {
       devices: {
@@ -283,6 +286,7 @@ async function listDeviceActions(userId, query = {}) {
       },
       ...(query.device_id ? { device_id: Number(query.device_id) } : {}),
       ...(statusFilter ? { status: statusFilter } : {}),
+      ...(createdAt ? { created_at: createdAt } : {}),
     },
     include: { devices: true },
     orderBy: { created_at: "desc" },

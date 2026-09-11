@@ -4,13 +4,24 @@ import { faSpinner } from '@fortawesome/free-solid-svg-icons';
 
 const PIN_PATTERN = /^\d{4,8}$/;
 
-function ChangePasscodeForm({ onSubmit, onCancel, isSubmitting, error }) {
+function ChangePasscodeForm({
+  onSubmit,
+  onCancel,
+  isSubmitting,
+  error,
+  requireCurrentPin = false,
+}) {
+  const [currentPin, setCurrentPin] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [validationError, setValidationError] = useState(null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (requireCurrentPin && !currentPin) {
+      setValidationError('Nhập mã PIN hiện tại để đổi.');
+      return;
+    }
     if (!PIN_PATTERN.test(pin)) {
       setValidationError('Mã PIN phải là 4-8 chữ số.');
       return;
@@ -20,11 +31,30 @@ function ChangePasscodeForm({ onSubmit, onCancel, isSubmitting, error }) {
       return;
     }
     setValidationError(null);
-    onSubmit(pin);
+    onSubmit(pin, requireCurrentPin ? currentPin : undefined);
   };
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      {requireCurrentPin && (
+        <div className="flex flex-col gap-2">
+          <label htmlFor="currentPasscode" className="text-label-md text-on-surface-variant">
+            Mã PIN hiện tại
+          </label>
+          <input
+            id="currentPasscode"
+            type="password"
+            inputMode="numeric"
+            maxLength={8}
+            value={currentPin}
+            onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ''))}
+            placeholder="••••••"
+            autoFocus
+            className="w-full rounded-lg bg-surface-container-low border border-outline-variant/40 px-4 py-3 text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:border-secondary tracking-[0.3em]"
+          />
+        </div>
+      )}
+
       <div className="flex flex-col gap-2">
         <label htmlFor="newPasscode" className="text-label-md text-on-surface-variant">
           Mã PIN mới (4-8 số)
@@ -57,7 +87,9 @@ function ChangePasscodeForm({ onSubmit, onCancel, isSubmitting, error }) {
         />
       </div>
 
-      {(validationError || error) && <p className="text-body-md text-error">{validationError || error}</p>}
+      {(validationError || error) && (
+        <p className="text-body-md text-error">{validationError || error}</p>
+      )}
 
       <div className="flex gap-3 mt-2">
         {onCancel && (

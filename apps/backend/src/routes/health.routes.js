@@ -19,7 +19,11 @@ router.get('/health', async (req, res) => {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: 'ok', db: 'connected' });
   } catch (err) {
-    res.status(503).json({ status: 'error', db: 'disconnected', message: err.message });
+    // err.message from Prisma carries host/port/database (sometimes the user) from the
+    // connection string, and this route is public. Log it server-side, return a generic
+    // status to the caller — same posture as error.middleware.js takes for 5xx.
+    console.error('Health check failed:', err);
+    res.status(503).json({ status: 'error', db: 'disconnected' });
   }
 });
 

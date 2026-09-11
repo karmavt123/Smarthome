@@ -8,7 +8,7 @@ const router = express.Router();
  * @openapi
  * /api/dashboard:
  *   get:
- *     summary: Return latest sensor values, histories, devices, and alerts
+ *     summary: Return the home tree with each room's latest environment snapshot
  *     security: [{ bearerAuth: [] }]
  *     responses:
  *       200: { description: Dashboard snapshot }

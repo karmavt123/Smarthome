@@ -9,7 +9,10 @@ const doorAccessService = {
     apiClient.get('/door-access/face-lock-status', { doorDeviceId }),
   getPinStatus: (doorDeviceId) =>
     apiClient.get('/door-access/pin-status', { door_device_id: doorDeviceId }),
-  setPin: (doorDeviceId, pin) => apiClient.put(`/door-access/${doorDeviceId}/pin`, { pin }),
+  // currentPin is required by the backend whenever a PIN already exists — changing it
+  // without proving knowledge of the old one would bypass the lockout.
+  setPin: (doorDeviceId, pin, currentPin) =>
+    apiClient.put(`/door-access/${doorDeviceId}/pin`, { pin, currentPin }),
   getFaceHistory: (params) => apiClient.get('/door-access/face-history', params),
   getPinHistory: (params) => apiClient.get('/door-access/pin-history', params),
 };
